@@ -35,6 +35,10 @@ struct Cli {
     #[arg(long, default_value_t = true)]
     dereference: bool,
 
+    /// Do not follow symlinks for objects passed as arguments
+    #[arg(long, conflicts_with = "dereference")]
+    no_dereference: bool,
+
     /// Show/hide file name
     #[arg(long, default_value_t = true)]
     filename: bool,
@@ -128,7 +132,7 @@ fn identify_object(
                 let content = swhid::content::Content::from_data(data);
                 Ok(content.swhid().to_string())
             } else {
-                let swhid = computer.compute_file_swhid(obj)?;
+                let swhid = computer.compute_swhid(obj)?;
                 Ok(swhid.to_string())
             }
         }
@@ -156,6 +160,9 @@ fn identify_object(
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cli = Cli::parse();
+
+    // Handle --no-dereference flag
+    let follow_symlinks = !cli.no_dereference;
 
     // Validate arguments
     if let Some(ref verify_swhid) = cli.verify {
@@ -185,7 +192,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let objects = traverse_directory_recursively(
                 obj,
                 &cli.exclude,
-                cli.dereference,
+                follow_symlinks,
             )?;
 
             for (path, mut tree_obj) in objects {
@@ -207,7 +214,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let obj = &cli.objects[0];
         let computed_swhid = identify_object(
             &cli.object_type,
-            cli.dereference,
+            follow_symlinks,
             &cli.exclude,
             obj,
         )?;
@@ -221,7 +228,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     } else {
         for obj in &cli.objects {
-            match identify_object(&cli.object_type, cli.dereference, &cli.exclude, obj) {
+            match identify_object(&cli.object_type, follow_symlinks, &cli.exclude, obj) {
                 Ok(swhid) => {
                                     let show_filename = cli.filename && !cli.no_filename;
                 if show_filename {
