@@ -10,7 +10,7 @@ pub mod error;
 pub mod person;
 pub mod timestamp;
 
-pub use swhid::{Swhid, ObjectType};
+pub use swhid::{Swhid, ObjectType, ExtendedSwhid, ExtendedObjectType, QualifiedSwhid};
 pub use error::SwhidError;
 pub use person::Person;
 pub use timestamp::{Timestamp, TimestampWithTimezone};

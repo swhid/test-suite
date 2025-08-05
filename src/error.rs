@@ -13,6 +13,9 @@ pub enum SwhidError {
     InvalidPath(String),
     DuplicateEntry(String),
     UnsupportedOperation(String),
+    InvalidQualifier(String),
+    InvalidQualifierValue(String),
+    UnknownQualifier(String),
 }
 
 impl fmt::Display for SwhidError {
@@ -28,6 +31,9 @@ impl fmt::Display for SwhidError {
             SwhidError::InvalidPath(path) => write!(f, "Invalid path: {}", path),
             SwhidError::DuplicateEntry(entry) => write!(f, "Duplicate entry: {}", entry),
             SwhidError::UnsupportedOperation(op) => write!(f, "Unsupported operation: {}", op),
+            SwhidError::InvalidQualifier(qual) => write!(f, "Invalid qualifier: {}", qual),
+            SwhidError::InvalidQualifierValue(val) => write!(f, "Invalid qualifier value: {}", val),
+            SwhidError::UnknownQualifier(qual) => write!(f, "Unknown qualifier: {}", qual),
         }
     }
 }

@@ -1054,3 +1054,329 @@ fn test_edge_case_special_characters() {
     assert!(names.iter().any(|n| n == b"file-with-dashes.txt"));
     assert!(names.iter().any(|n| n == b"file_with_underscores.txt"));
 } 
+
+#[cfg(test)]
+mod extended_swhid_tests {
+    use super::*;
+    use swhid::{ExtendedSwhid, ExtendedObjectType, QualifiedSwhid};
+
+    #[test]
+    fn test_extended_object_type_creation() {
+        assert_eq!(ExtendedObjectType::Content.as_str(), "cnt");
+        assert_eq!(ExtendedObjectType::Directory.as_str(), "dir");
+        assert_eq!(ExtendedObjectType::Revision.as_str(), "rev");
+        assert_eq!(ExtendedObjectType::Release.as_str(), "rel");
+        assert_eq!(ExtendedObjectType::Snapshot.as_str(), "snp");
+        assert_eq!(ExtendedObjectType::Origin.as_str(), "ori");
+        assert_eq!(ExtendedObjectType::RawExtrinsicMetadata.as_str(), "emd");
+    }
+
+    #[test]
+    fn test_extended_object_type_from_str() {
+        assert_eq!(ExtendedObjectType::from_str("cnt").unwrap(), ExtendedObjectType::Content);
+        assert_eq!(ExtendedObjectType::from_str("dir").unwrap(), ExtendedObjectType::Directory);
+        assert_eq!(ExtendedObjectType::from_str("rev").unwrap(), ExtendedObjectType::Revision);
+        assert_eq!(ExtendedObjectType::from_str("rel").unwrap(), ExtendedObjectType::Release);
+        assert_eq!(ExtendedObjectType::from_str("snp").unwrap(), ExtendedObjectType::Snapshot);
+        assert_eq!(ExtendedObjectType::from_str("ori").unwrap(), ExtendedObjectType::Origin);
+        assert_eq!(ExtendedObjectType::from_str("emd").unwrap(), ExtendedObjectType::RawExtrinsicMetadata);
+        
+        assert!(ExtendedObjectType::from_str("invalid").is_err());
+    }
+
+    #[test]
+    fn test_extended_swhid_creation() {
+        let object_id = [0u8; 20];
+        let swhid = ExtendedSwhid::new(ExtendedObjectType::Content, object_id);
+        
+        assert_eq!(swhid.namespace(), "swh");
+        assert_eq!(swhid.scheme_version(), 1);
+        assert_eq!(swhid.object_type(), ExtendedObjectType::Content);
+        assert_eq!(swhid.object_id(), &object_id);
+    }
+
+    #[test]
+    fn test_extended_swhid_from_string() {
+        let swhid_str = "swh:1:cnt:8ff44f081d43176474b267de5451f2c2e88089d0";
+        let swhid = ExtendedSwhid::from_string(swhid_str).unwrap();
+        
+        assert_eq!(swhid.namespace(), "swh");
+        assert_eq!(swhid.scheme_version(), 1);
+        assert_eq!(swhid.object_type(), ExtendedObjectType::Content);
+        assert_eq!(hex::encode(swhid.object_id()), "8ff44f081d43176474b267de5451f2c2e88089d0");
+    }
+
+    #[test]
+    fn test_extended_swhid_from_string_with_origin() {
+        let swhid_str = "swh:1:ori:8ff44f081d43176474b267de5451f2c2e88089d0";
+        let swhid = ExtendedSwhid::from_string(swhid_str).unwrap();
+        
+        assert_eq!(swhid.object_type(), ExtendedObjectType::Origin);
+    }
+
+    #[test]
+    fn test_extended_swhid_from_string_with_emd() {
+        let swhid_str = "swh:1:emd:8ff44f081d43176474b267de5451f2c2e88089d0";
+        let swhid = ExtendedSwhid::from_string(swhid_str).unwrap();
+        
+        assert_eq!(swhid.object_type(), ExtendedObjectType::RawExtrinsicMetadata);
+    }
+
+    #[test]
+    fn test_extended_swhid_display() {
+        let object_id = hex::decode("8ff44f081d43176474b267de5451f2c2e88089d0").unwrap();
+        let mut object_id_array = [0u8; 20];
+        object_id_array.copy_from_slice(&object_id);
+        
+        let swhid = ExtendedSwhid::new(ExtendedObjectType::Content, object_id_array);
+        let swhid_str = format!("{}", swhid);
+        
+        assert_eq!(swhid_str, "swh:1:cnt:8ff44f081d43176474b267de5451f2c2e88089d0");
+    }
+
+    #[test]
+    fn test_extended_swhid_invalid_format() {
+        assert!(ExtendedSwhid::from_string("invalid").is_err());
+        assert!(ExtendedSwhid::from_string("swh:1:cnt").is_err());
+        assert!(ExtendedSwhid::from_string("swh:1:cnt:invalid").is_err());
+    }
+
+    #[test]
+    fn test_extended_swhid_invalid_namespace() {
+        assert!(ExtendedSwhid::from_string("invalid:1:cnt:8ff44f081d43176474b267de5451f2c2e88089d0").is_err());
+    }
+
+    #[test]
+    fn test_extended_swhid_invalid_version() {
+        assert!(ExtendedSwhid::from_string("swh:2:cnt:8ff44f081d43176474b267de5451f2c2e88089d0").is_err());
+    }
+
+    #[test]
+    fn test_extended_swhid_invalid_object_type() {
+        assert!(ExtendedSwhid::from_string("swh:1:invalid:8ff44f081d43176474b267de5451f2c2e88089d0").is_err());
+    }
+
+    #[test]
+    fn test_extended_swhid_invalid_hash() {
+        assert!(ExtendedSwhid::from_string("swh:1:cnt:invalid").is_err());
+        assert!(ExtendedSwhid::from_string("swh:1:cnt:123").is_err()); // too short
+    }
+
+    #[test]
+    fn test_core_to_extended_conversion() {
+        let object_id = [0u8; 20];
+        let core_swhid = Swhid::new(ObjectType::Content, object_id);
+        let extended_swhid = core_swhid.to_extended();
+        
+        assert_eq!(extended_swhid.namespace(), core_swhid.namespace());
+        assert_eq!(extended_swhid.scheme_version(), core_swhid.scheme_version());
+        assert_eq!(extended_swhid.object_type(), ExtendedObjectType::Content);
+        assert_eq!(extended_swhid.object_id(), core_swhid.object_id());
+    }
+}
+
+#[cfg(test)]
+mod qualified_swhid_tests {
+    use super::*;
+    use swhid::{QualifiedSwhid, Swhid, ObjectType};
+
+    #[test]
+    fn test_qualified_swhid_creation() {
+        let object_id = [0u8; 20];
+        let swhid = QualifiedSwhid::new(ObjectType::Content, object_id);
+        
+        assert_eq!(swhid.namespace(), "swh");
+        assert_eq!(swhid.scheme_version(), 1);
+        assert_eq!(swhid.object_type(), ObjectType::Content);
+        assert_eq!(swhid.object_id(), &object_id);
+        assert_eq!(swhid.origin(), None);
+        assert_eq!(swhid.visit(), None);
+        assert_eq!(swhid.anchor(), None);
+        assert_eq!(swhid.path(), None);
+        assert_eq!(swhid.lines(), None);
+    }
+
+    #[test]
+    fn test_qualified_swhid_builder_pattern() {
+        let object_id = [0u8; 20];
+        let origin_swhid = Swhid::new(ObjectType::Snapshot, [1u8; 20]);
+        let anchor_swhid = Swhid::new(ObjectType::Revision, [2u8; 20]);
+        
+        let swhid = QualifiedSwhid::new(ObjectType::Content, object_id)
+            .with_origin("https://github.com/user/repo".to_string())
+            .with_visit(origin_swhid.clone())
+            .with_anchor(anchor_swhid.clone())
+            .with_path(b"/path/to/file.txt".to_vec())
+            .with_lines(10, Some(20));
+        
+        assert_eq!(swhid.origin(), Some("https://github.com/user/repo"));
+        assert_eq!(swhid.visit(), Some(&origin_swhid));
+        assert_eq!(swhid.anchor(), Some(&anchor_swhid));
+        assert_eq!(swhid.path(), Some(b"/path/to/file.txt".as_slice()));
+        assert_eq!(swhid.lines(), Some((10, Some(20))));
+    }
+
+    #[test]
+    fn test_qualified_swhid_from_string_basic() {
+        let swhid_str = "swh:1:cnt:8ff44f081d43176474b267de5451f2c2e88089d0";
+        let swhid = QualifiedSwhid::from_string(swhid_str).unwrap();
+        
+        assert_eq!(swhid.namespace(), "swh");
+        assert_eq!(swhid.scheme_version(), 1);
+        assert_eq!(swhid.object_type(), ObjectType::Content);
+        assert_eq!(hex::encode(swhid.object_id()), "8ff44f081d43176474b267de5451f2c2e88089d0");
+        assert_eq!(swhid.origin(), None);
+        assert_eq!(swhid.visit(), None);
+        assert_eq!(swhid.anchor(), None);
+        assert_eq!(swhid.path(), None);
+        assert_eq!(swhid.lines(), None);
+    }
+
+    #[test]
+    fn test_qualified_swhid_from_string_with_origin() {
+        let swhid_str = "swh:1:cnt:8ff44f081d43176474b267de5451f2c2e88089d0;origin=https://github.com/user/repo";
+        let swhid = QualifiedSwhid::from_string(swhid_str).unwrap();
+        
+        assert_eq!(swhid.origin(), Some("https://github.com/user/repo"));
+    }
+
+    #[test]
+    fn test_qualified_swhid_from_string_with_visit() {
+        let visit_swhid = "swh:1:snp:1234567890abcdef1234567890abcdef12345678";
+        let swhid_str = format!("swh:1:cnt:8ff44f081d43176474b267de5451f2c2e88089d0;visit={}", visit_swhid);
+        let swhid = QualifiedSwhid::from_string(&swhid_str).unwrap();
+        
+        assert_eq!(swhid.visit().unwrap().to_string(), visit_swhid);
+    }
+
+    #[test]
+    fn test_qualified_swhid_from_string_with_anchor() {
+        let anchor_swhid = "swh:1:rev:1234567890abcdef1234567890abcdef12345678";
+        let swhid_str = format!("swh:1:cnt:8ff44f081d43176474b267de5451f2c2e88089d0;anchor={}", anchor_swhid);
+        let swhid = QualifiedSwhid::from_string(&swhid_str).unwrap();
+        
+        assert_eq!(swhid.anchor().unwrap().to_string(), anchor_swhid);
+    }
+
+    #[test]
+    fn test_qualified_swhid_from_string_with_path() {
+        let swhid_str = "swh:1:cnt:8ff44f081d43176474b267de5451f2c2e88089d0;path=/path/to/file.txt";
+        let swhid = QualifiedSwhid::from_string(swhid_str).unwrap();
+        
+        assert_eq!(swhid.path(), Some(b"/path/to/file.txt".as_slice()));
+    }
+
+    #[test]
+    fn test_qualified_swhid_from_string_with_lines() {
+        let swhid_str = "swh:1:cnt:8ff44f081d43176474b267de5451f2c2e88089d0;lines=10-20";
+        let swhid = QualifiedSwhid::from_string(swhid_str).unwrap();
+        
+        assert_eq!(swhid.lines(), Some((10, Some(20))));
+    }
+
+    #[test]
+    fn test_qualified_swhid_from_string_with_single_line() {
+        let swhid_str = "swh:1:cnt:8ff44f081d43176474b267de5451f2c2e88089d0;lines=10";
+        let swhid = QualifiedSwhid::from_string(swhid_str).unwrap();
+        
+        assert_eq!(swhid.lines(), Some((10, None)));
+    }
+
+    #[test]
+    fn test_qualified_swhid_from_string_with_multiple_qualifiers() {
+        let swhid_str = "swh:1:cnt:8ff44f081d43176474b267de5451f2c2e88089d0;origin=https://github.com/user/repo;path=/file.txt;lines=10-20";
+        let swhid = QualifiedSwhid::from_string(swhid_str).unwrap();
+        
+        assert_eq!(swhid.origin(), Some("https://github.com/user/repo"));
+        assert_eq!(swhid.path(), Some(b"/file.txt".as_slice()));
+        assert_eq!(swhid.lines(), Some((10, Some(20))));
+    }
+
+    #[test]
+    fn test_qualified_swhid_display_basic() {
+        let object_id = hex::decode("8ff44f081d43176474b267de5451f2c2e88089d0").unwrap();
+        let mut object_id_array = [0u8; 20];
+        object_id_array.copy_from_slice(&object_id);
+        
+        let swhid = QualifiedSwhid::new(ObjectType::Content, object_id_array);
+        let swhid_str = format!("{}", swhid);
+        
+        assert_eq!(swhid_str, "swh:1:cnt:8ff44f081d43176474b267de5451f2c2e88089d0");
+    }
+
+    #[test]
+    fn test_qualified_swhid_display_with_qualifiers() {
+        let object_id = hex::decode("8ff44f081d43176474b267de5451f2c2e88089d0").unwrap();
+        let mut object_id_array = [0u8; 20];
+        object_id_array.copy_from_slice(&object_id);
+        let origin_swhid = Swhid::new(ObjectType::Snapshot, [1u8; 20]);
+        let anchor_swhid = Swhid::new(ObjectType::Revision, [2u8; 20]);
+        
+        let swhid = QualifiedSwhid::new(ObjectType::Content, object_id_array)
+            .with_origin("https://github.com/user/repo".to_string())
+            .with_visit(origin_swhid)
+            .with_anchor(anchor_swhid)
+            .with_path(b"/path/to/file.txt".to_vec())
+            .with_lines(10, Some(20));
+        
+        let swhid_str = format!("{}", swhid);
+        
+        // Should contain all qualifiers in the correct order
+        assert!(swhid_str.contains(";origin=https://github.com/user/repo"));
+        assert!(swhid_str.contains(";visit="));
+        assert!(swhid_str.contains(";anchor="));
+        assert!(swhid_str.contains(";path=/path/to/file.txt"));
+        assert!(swhid_str.contains(";lines=10-20"));
+    }
+
+    #[test]
+    fn test_qualified_swhid_invalid_format() {
+        assert!(QualifiedSwhid::from_string("").is_err());
+        assert!(QualifiedSwhid::from_string("invalid").is_err());
+        assert!(QualifiedSwhid::from_string("swh:1:cnt").is_err());
+    }
+
+    #[test]
+    fn test_qualified_swhid_invalid_qualifier_format() {
+        let swhid_str = "swh:1:cnt:8ff44f081d43176474b267de5451f2c2e88089d0;invalid";
+        assert!(QualifiedSwhid::from_string(swhid_str).is_err());
+        
+        let swhid_str = "swh:1:cnt:8ff44f081d43176474b267de5451f2c2e88089d0;origin";
+        assert!(QualifiedSwhid::from_string(swhid_str).is_err());
+    }
+
+    #[test]
+    fn test_qualified_swhid_unknown_qualifier() {
+        let swhid_str = "swh:1:cnt:8ff44f081d43176474b267de5451f2c2e88089d0;unknown=value";
+        assert!(QualifiedSwhid::from_string(swhid_str).is_err());
+    }
+
+    #[test]
+    fn test_qualified_swhid_invalid_lines_format() {
+        let swhid_str = "swh:1:cnt:8ff44f081d43176474b267de5451f2c2e88089d0;lines=invalid";
+        assert!(QualifiedSwhid::from_string(swhid_str).is_err());
+        
+        let swhid_str = "swh:1:cnt:8ff44f081d43176474b267de5451f2c2e88089d0;lines=10-invalid";
+        assert!(QualifiedSwhid::from_string(swhid_str).is_err());
+        
+        let swhid_str = "swh:1:cnt:8ff44f081d43176474b267de5451f2c2e88089d0;lines=10-20-30";
+        assert!(QualifiedSwhid::from_string(swhid_str).is_err());
+    }
+
+    #[test]
+    fn test_core_to_qualified_conversion() {
+        let object_id = [0u8; 20];
+        let core_swhid = Swhid::new(ObjectType::Content, object_id);
+        let qualified_swhid = core_swhid.to_qualified();
+        
+        assert_eq!(qualified_swhid.namespace(), core_swhid.namespace());
+        assert_eq!(qualified_swhid.scheme_version(), core_swhid.scheme_version());
+        assert_eq!(qualified_swhid.object_type(), core_swhid.object_type());
+        assert_eq!(qualified_swhid.object_id(), core_swhid.object_id());
+        assert_eq!(qualified_swhid.origin(), None);
+        assert_eq!(qualified_swhid.visit(), None);
+        assert_eq!(qualified_swhid.anchor(), None);
+        assert_eq!(qualified_swhid.path(), None);
+        assert_eq!(qualified_swhid.lines(), None);
+    }
+} 
