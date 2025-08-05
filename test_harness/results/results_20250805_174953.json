@@ -1,0 +1,28 @@
+[
+  {
+    "payload_name": "simple_tar",
+    "payload_path": "payloads/archive/simple.tar",
+    "all_match": true,
+    "expected_swhid": null,
+    "results": {
+      "git": {
+        "swhid": "swh:1:cnt:e242d8a7a37347c376a6d8f3f1cb0f93b9d5b6dc",
+        "error": null,
+        "duration": 0.010634899139404297,
+        "success": true
+      },
+      "python": {
+        "swhid": "swh:1:cnt:e242d8a7a37347c376a6d8f3f1cb0f93b9d5b6dc",
+        "error": null,
+        "duration": 0.09241580963134766,
+        "success": true
+      },
+      "rust": {
+        "swhid": "swh:1:cnt:e242d8a7a37347c376a6d8f3f1cb0f93b9d5b6dc",
+        "error": null,
+        "duration": 0.10730743408203125,
+        "success": true
+      }
+    }
+  }
+]

@@ -1,0 +1,122 @@
+[
+  {
+    "payload_name": "empty_file",
+    "payload_path": "payloads/content/empty.txt",
+    "all_match": true,
+    "expected_swhid": "swh:1:cnt:0519ecba6ea913e21689ec692e81e9e4973fbf73",
+    "results": {
+      "python": {
+        "swhid": "swh:1:cnt:0519ecba6ea913e21689ec692e81e9e4973fbf73",
+        "error": null,
+        "duration": 0.0897986888885498,
+        "success": true
+      },
+      "rust": {
+        "swhid": "swh:1:cnt:0519ecba6ea913e21689ec692e81e9e4973fbf73",
+        "error": null,
+        "duration": 0.09535408020019531,
+        "success": true
+      }
+    }
+  },
+  {
+    "payload_name": "hello_world",
+    "payload_path": "payloads/content/hello.txt",
+    "all_match": true,
+    "expected_swhid": null,
+    "results": {
+      "python": {
+        "swhid": "swh:1:cnt:f732d2ae1a449d8204f266b59bb35cb4eb0e899d",
+        "error": null,
+        "duration": 0.1065826416015625,
+        "success": true
+      },
+      "rust": {
+        "swhid": "swh:1:cnt:f732d2ae1a449d8204f266b59bb35cb4eb0e899d",
+        "error": null,
+        "duration": 0.10718059539794922,
+        "success": true
+      }
+    }
+  },
+  {
+    "payload_name": "unicode_text",
+    "payload_path": "payloads/content/unicode.txt",
+    "all_match": true,
+    "expected_swhid": null,
+    "results": {
+      "python": {
+        "swhid": "swh:1:cnt:a5c8b6044dbae83d6d31ce1d66f09b9900d0556a",
+        "error": null,
+        "duration": 0.09197711944580078,
+        "success": true
+      },
+      "rust": {
+        "swhid": "swh:1:cnt:a5c8b6044dbae83d6d31ce1d66f09b9900d0556a",
+        "error": null,
+        "duration": 0.09527373313903809,
+        "success": true
+      }
+    }
+  },
+  {
+    "payload_name": "simple_dir",
+    "payload_path": "payloads/directory/simple/",
+    "all_match": true,
+    "expected_swhid": null,
+    "results": {
+      "python": {
+        "swhid": "swh:1:dir:3f09c252c646f8ac591d60e02e41ab09274de7c1",
+        "error": null,
+        "duration": 0.09012174606323242,
+        "success": true
+      },
+      "rust": {
+        "swhid": "swh:1:dir:3f09c252c646f8ac591d60e02e41ab09274de7c1",
+        "error": null,
+        "duration": 0.09684443473815918,
+        "success": true
+      }
+    }
+  },
+  {
+    "payload_name": "nested_dir",
+    "payload_path": "payloads/directory/nested/",
+    "all_match": true,
+    "expected_swhid": null,
+    "results": {
+      "python": {
+        "swhid": "swh:1:dir:0bbbf9c7f265450b510251ff215a729f062a763a",
+        "error": null,
+        "duration": 0.09162712097167969,
+        "success": true
+      },
+      "rust": {
+        "swhid": "swh:1:dir:0bbbf9c7f265450b510251ff215a729f062a763a",
+        "error": null,
+        "duration": 0.09902453422546387,
+        "success": true
+      }
+    }
+  },
+  {
+    "payload_name": "simple_tar",
+    "payload_path": "payloads/archive/simple.tar",
+    "all_match": true,
+    "expected_swhid": null,
+    "results": {
+      "python": {
+        "swhid": "swh:1:cnt:e242d8a7a37347c376a6d8f3f1cb0f93b9d5b6dc",
+        "error": null,
+        "duration": 0.09518766403198242,
+        "success": true
+      },
+      "rust": {
+        "swhid": "swh:1:cnt:e242d8a7a37347c376a6d8f3f1cb0f93b9d5b6dc",
+        "error": null,
+        "duration": 0.10013008117675781,
+        "success": true
+      }
+    }
+  }
+]

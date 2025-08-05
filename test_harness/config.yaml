@@ -13,6 +13,12 @@ implementations:
     runner: "runners/python_runner.py"
     command: "python -m swh.model.cli"
     enabled: true
+    
+  git:
+    name: "Git Implementation (dulwich)"
+    runner: "runners/git_runner.py"
+    command: "python -c 'import dulwich'"
+    enabled: true
 
 # Test payloads organized by category
 payloads:
