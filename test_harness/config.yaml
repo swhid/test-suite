@@ -1,0 +1,118 @@
+# SWHID Testing Harness Configuration
+
+# Available implementations
+implementations:
+  rust:
+    name: "Rust Implementation"
+    runner: "runners/rust_runner.py"
+    command: "cargo run --"
+    enabled: true
+    
+  python:
+    name: "Python Implementation"
+    runner: "runners/python_runner.py"
+    command: "python -m swh.model.cli"
+    enabled: true
+
+# Test payloads organized by category
+payloads:
+  content:
+    - name: "empty_file"
+      path: "payloads/content/empty.txt"
+      description: "Empty file"
+      expected_swhid: "swh:1:cnt:0519ecba6ea913e21689ec692e81e9e4973fbf73"
+      
+    - name: "hello_world"
+      path: "payloads/content/hello.txt"
+      description: "Simple text file"
+      
+    - name: "unicode_text"
+      path: "payloads/content/unicode.txt"
+      description: "Text with Unicode characters"
+      
+    - name: "binary_file"
+      path: "payloads/content/binary.bin"
+      description: "Binary file"
+      
+    - name: "large_file"
+      path: "payloads/content/large.txt"
+      description: "Large text file (>1MB)"
+
+  directory:
+    - name: "empty_dir"
+      path: "payloads/directory/empty/"
+      description: "Empty directory"
+      
+    - name: "simple_dir"
+      path: "payloads/directory/simple/"
+      description: "Directory with files"
+      
+    - name: "nested_dir"
+      path: "payloads/directory/nested/"
+      description: "Directory with subdirectories"
+      
+    - name: "symlink_dir"
+      path: "payloads/directory/symlink/"
+      description: "Directory with symlinks"
+      
+    - name: "permissions_dir"
+      path: "payloads/directory/permissions/"
+      description: "Directory with special permissions"
+
+  archive:
+    - name: "simple_tar"
+      path: "payloads/archive/simple.tar"
+      description: "Simple tar archive"
+      
+    - name: "nested_tar"
+      path: "payloads/archive/nested.tar"
+      description: "Tar with nested structure"
+      
+    - name: "compressed_tar"
+      path: "payloads/archive/compressed.tar.gz"
+      description: "Gzipped tar archive"
+      
+    - name: "zip_archive"
+      path: "payloads/archive/simple.zip"
+      description: "Zip archive"
+      
+    - name: "bzip2_tar"
+      path: "payloads/archive/compressed.tar.bz2"
+      description: "Bzip2 compressed tar"
+
+  git:
+    - name: "simple_repo"
+      path: "payloads/git/simple/"
+      description: "Simple Git repository"
+      
+    - name: "branch_repo"
+      path: "payloads/git/branches/"
+      description: "Repository with branches"
+      
+    - name: "tag_repo"
+      path: "payloads/git/tags/"
+      description: "Repository with tags"
+      
+    - name: "complex_repo"
+      path: "payloads/git/complex/"
+      description: "Complex repository with history"
+
+# Test settings
+settings:
+  timeout: 30  # seconds
+  max_file_size: "100MB"
+  cleanup_temp: true
+  parallel_tests: 4
+  
+# Output configuration
+output:
+  format: "json"  # json, text, html
+  results_dir: "results"
+  detailed_logs: true
+  performance_metrics: true
+  
+# Comparison settings
+comparison:
+  strict_mode: true  # Require exact matches
+  allow_implementation_differences: false
+  tolerance_percentage: 0.0 

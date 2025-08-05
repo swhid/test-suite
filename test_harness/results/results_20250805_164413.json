@@ -1,0 +1,44 @@
+[
+  {
+    "payload_name": "empty_file",
+    "payload_path": "payloads/content/empty.txt",
+    "all_match": false,
+    "expected_swhid": "swh:1:cnt:da39a3ee5e6b4b0d3255bfef95601890afd80709",
+    "results": {
+      "rust": {
+        "swhid": null,
+        "error": "name 'importlib' is not defined",
+        "duration": 5.0067901611328125e-06,
+        "success": false
+      }
+    }
+  },
+  {
+    "payload_name": "hello_world",
+    "payload_path": "payloads/content/hello.txt",
+    "all_match": false,
+    "expected_swhid": null,
+    "results": {
+      "rust": {
+        "swhid": null,
+        "error": "name 'importlib' is not defined",
+        "duration": 6.67572021484375e-06,
+        "success": false
+      }
+    }
+  },
+  {
+    "payload_name": "unicode_text",
+    "payload_path": "payloads/content/unicode.txt",
+    "all_match": false,
+    "expected_swhid": null,
+    "results": {
+      "rust": {
+        "swhid": null,
+        "error": "name 'importlib' is not defined",
+        "duration": 2.384185791015625e-06,
+        "success": false
+      }
+    }
+  }
+]

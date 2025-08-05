@@ -1,0 +1,62 @@
+[
+  {
+    "payload_name": "empty_file",
+    "payload_path": "payloads/content/empty.txt",
+    "all_match": false,
+    "expected_swhid": "swh:1:cnt:da39a3ee5e6b4b0d3255bfef95601890afd80709",
+    "results": {
+      "python": {
+        "swhid": "swh:1:cnt:0519ecba6ea913e21689ec692e81e9e4973fbf73",
+        "error": null,
+        "duration": 0.08463025093078613,
+        "success": true
+      },
+      "rust": {
+        "swhid": "swh:1:cnt:0519ecba6ea913e21689ec692e81e9e4973fbf73",
+        "error": null,
+        "duration": 0.09240365028381348,
+        "success": true
+      }
+    }
+  },
+  {
+    "payload_name": "hello_world",
+    "payload_path": "payloads/content/hello.txt",
+    "all_match": true,
+    "expected_swhid": null,
+    "results": {
+      "rust": {
+        "swhid": "swh:1:cnt:f732d2ae1a449d8204f266b59bb35cb4eb0e899d",
+        "error": null,
+        "duration": 0.0911095142364502,
+        "success": true
+      },
+      "python": {
+        "swhid": "swh:1:cnt:f732d2ae1a449d8204f266b59bb35cb4eb0e899d",
+        "error": null,
+        "duration": 0.09177947044372559,
+        "success": true
+      }
+    }
+  },
+  {
+    "payload_name": "unicode_text",
+    "payload_path": "payloads/content/unicode.txt",
+    "all_match": true,
+    "expected_swhid": null,
+    "results": {
+      "python": {
+        "swhid": "swh:1:cnt:a5c8b6044dbae83d6d31ce1d66f09b9900d0556a",
+        "error": null,
+        "duration": 0.08677554130554199,
+        "success": true
+      },
+      "rust": {
+        "swhid": "swh:1:cnt:a5c8b6044dbae83d6d31ce1d66f09b9900d0556a",
+        "error": null,
+        "duration": 0.09555578231811523,
+        "success": true
+      }
+    }
+  }
+]

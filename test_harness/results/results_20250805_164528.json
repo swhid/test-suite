@@ -1,0 +1,44 @@
+[
+  {
+    "payload_name": "empty_file",
+    "payload_path": "payloads/content/empty.txt",
+    "all_match": false,
+    "expected_swhid": "swh:1:cnt:da39a3ee5e6b4b0d3255bfef95601890afd80709",
+    "results": {
+      "rust": {
+        "swhid": null,
+        "error": "compute_swhid() takes 1 positional argument but 2 were given",
+        "duration": 0.0009765625,
+        "success": false
+      }
+    }
+  },
+  {
+    "payload_name": "hello_world",
+    "payload_path": "payloads/content/hello.txt",
+    "all_match": false,
+    "expected_swhid": null,
+    "results": {
+      "rust": {
+        "swhid": null,
+        "error": "compute_swhid() takes 1 positional argument but 2 were given",
+        "duration": 0.000152587890625,
+        "success": false
+      }
+    }
+  },
+  {
+    "payload_name": "unicode_text",
+    "payload_path": "payloads/content/unicode.txt",
+    "all_match": false,
+    "expected_swhid": null,
+    "results": {
+      "rust": {
+        "swhid": null,
+        "error": "compute_swhid() takes 1 positional argument but 2 were given",
+        "duration": 0.00014662742614746094,
+        "success": false
+      }
+    }
+  }
+]

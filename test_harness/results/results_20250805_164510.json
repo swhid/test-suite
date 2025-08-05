@@ -1,0 +1,44 @@
+[
+  {
+    "payload_name": "empty_file",
+    "payload_path": "payloads/content/empty.txt",
+    "all_match": false,
+    "expected_swhid": "swh:1:cnt:da39a3ee5e6b4b0d3255bfef95601890afd80709",
+    "results": {
+      "rust": {
+        "swhid": null,
+        "error": "Error running Rust implementation: Rust implementation failed: warning: unused import: `std::fs`\n --> src/lib.rs:2:5\n  |\n2 | use std::fs;\n  |     ^^^^^^^\n  |\n  = note: `#[warn(unused_imports)]` on by default\n\nwarning: function `collect_tree_objects` is never used\n   --> src/directory.rs:498:4\n    |\n498 | fn collect_tree_objects(\n    |    ^^^^^^^^^^^^^^^^^^^^\n    |\n    = note: `#[warn(dead_code)]` on by default\n\nwarning: function `collect_content_objects` is never used\n   --> src/directory.rs:540:4\n    |\n540 | fn collect_content_objects(\n    |    ^^^^^^^^^^^^^^^^^^^^^^^\n\nwarning: function `compute_directory_hashes` is never used\n   --> src/directory.rs:578:4\n    |\n578 | fn compute_directory_hashes(\n    |    ^^^^^^^^^^^^^^^^^^^^^^^^\n\nwarning: `swhid` (lib) generated 4 warnings (run `cargo fix --lib -p swhid` to apply 1 suggestion)\n    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.05s\n     Running `target/debug/swhid-cli payloads/content/empty.txt`\nError: \"cannot detect object type\"\n",
+        "duration": 0.09720206260681152,
+        "success": false
+      }
+    }
+  },
+  {
+    "payload_name": "hello_world",
+    "payload_path": "payloads/content/hello.txt",
+    "all_match": false,
+    "expected_swhid": null,
+    "results": {
+      "rust": {
+        "swhid": null,
+        "error": "Error running Rust implementation: Rust implementation failed: warning: unused import: `std::fs`\n --> src/lib.rs:2:5\n  |\n2 | use std::fs;\n  |     ^^^^^^^\n  |\n  = note: `#[warn(unused_imports)]` on by default\n\nwarning: function `collect_tree_objects` is never used\n   --> src/directory.rs:498:4\n    |\n498 | fn collect_tree_objects(\n    |    ^^^^^^^^^^^^^^^^^^^^\n    |\n    = note: `#[warn(dead_code)]` on by default\n\nwarning: function `collect_content_objects` is never used\n   --> src/directory.rs:540:4\n    |\n540 | fn collect_content_objects(\n    |    ^^^^^^^^^^^^^^^^^^^^^^^\n\nwarning: function `compute_directory_hashes` is never used\n   --> src/directory.rs:578:4\n    |\n578 | fn compute_directory_hashes(\n    |    ^^^^^^^^^^^^^^^^^^^^^^^^\n\nwarning: `swhid` (lib) generated 4 warnings (run `cargo fix --lib -p swhid` to apply 1 suggestion)\n    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.04s\n     Running `target/debug/swhid-cli payloads/content/hello.txt`\nError: \"cannot detect object type\"\n",
+        "duration": 0.09296846389770508,
+        "success": false
+      }
+    }
+  },
+  {
+    "payload_name": "unicode_text",
+    "payload_path": "payloads/content/unicode.txt",
+    "all_match": false,
+    "expected_swhid": null,
+    "results": {
+      "rust": {
+        "swhid": null,
+        "error": "Error running Rust implementation: Rust implementation failed: warning: unused import: `std::fs`\n --> src/lib.rs:2:5\n  |\n2 | use std::fs;\n  |     ^^^^^^^\n  |\n  = note: `#[warn(unused_imports)]` on by default\n\nwarning: function `collect_tree_objects` is never used\n   --> src/directory.rs:498:4\n    |\n498 | fn collect_tree_objects(\n    |    ^^^^^^^^^^^^^^^^^^^^\n    |\n    = note: `#[warn(dead_code)]` on by default\n\nwarning: function `collect_content_objects` is never used\n   --> src/directory.rs:540:4\n    |\n540 | fn collect_content_objects(\n    |    ^^^^^^^^^^^^^^^^^^^^^^^\n\nwarning: function `compute_directory_hashes` is never used\n   --> src/directory.rs:578:4\n    |\n578 | fn compute_directory_hashes(\n    |    ^^^^^^^^^^^^^^^^^^^^^^^^\n\nwarning: `swhid` (lib) generated 4 warnings (run `cargo fix --lib -p swhid` to apply 1 suggestion)\n    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.05s\n     Running `target/debug/swhid-cli payloads/content/unicode.txt`\nError: \"cannot detect object type\"\n",
+        "duration": 0.09956908226013184,
+        "success": false
+      }
+    }
+  }
+]

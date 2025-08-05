@@ -1,0 +1,3 @@
+Hello, 世界!
+This file contains Unicode characters: é, ñ, 中文, 🚀
+Testing SWHID with international content. 
