@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::fs;
 
 pub mod swhid;
@@ -23,20 +23,23 @@ pub use revision::{Revision, RevisionType};
 pub use release::{Release, ReleaseTargetType};
 pub use snapshot::{Snapshot, SnapshotBranch, SnapshotTargetType};
 
-/// Main entry point for computing SWHIDs
+#[derive(Clone)]
 pub struct SwhidComputer {
-    // Configuration options
-    exclude_patterns: Vec<String>,
-    follow_symlinks: bool,
-    max_content_length: Option<usize>,
+    pub follow_symlinks: bool,
+    pub exclude_patterns: Vec<String>,
+    pub max_content_length: Option<usize>,
+    pub filename: bool,
+    pub recursive: bool,
 }
 
 impl Default for SwhidComputer {
     fn default() -> Self {
         Self {
-            exclude_patterns: vec![],
             follow_symlinks: true,
+            exclude_patterns: Vec::new(),
             max_content_length: None,
+            filename: true,
+            recursive: false,
         }
     }
 }
@@ -46,19 +49,35 @@ impl SwhidComputer {
         Self::default()
     }
 
-    pub fn with_exclude_patterns(mut self, patterns: Vec<String>) -> Self {
-        self.exclude_patterns = patterns;
+    pub fn with_follow_symlinks(mut self, follow_symlinks: bool) -> Self {
+        self.follow_symlinks = follow_symlinks;
         self
     }
 
-    pub fn with_follow_symlinks(mut self, follow: bool) -> Self {
-        self.follow_symlinks = follow;
+    pub fn with_exclude_patterns(mut self, exclude_patterns: &[String]) -> Self {
+        self.exclude_patterns = exclude_patterns.to_vec();
         self
     }
 
-    pub fn with_max_content_length(mut self, max_length: Option<usize>) -> Self {
-        self.max_content_length = max_length;
+    pub fn with_max_content_length(mut self, max_content_length: Option<usize>) -> Self {
+        self.max_content_length = max_content_length;
         self
+    }
+
+    pub fn with_filename(mut self, filename: bool) -> Self {
+        self.filename = filename;
+        self
+    }
+
+    pub fn with_recursive(mut self, recursive: bool) -> Self {
+        self.recursive = recursive;
+        self
+    }
+
+    /// Compute SWHID for content bytes
+    pub fn compute_content_swhid(&self, content: &[u8]) -> Result<Swhid, SwhidError> {
+        let content_obj = content::Content::from_data(content.to_vec());
+        Ok(content_obj.swhid())
     }
 
     /// Compute SWHID for a file
@@ -77,38 +96,20 @@ impl SwhidComputer {
     pub fn compute_swhid<P: AsRef<Path>>(&self, path: P) -> Result<Swhid, SwhidError> {
         let path = path.as_ref();
         
-        // Check if it's a symlink first
         if path.is_symlink() {
             if self.follow_symlinks {
-                // Follow the symlink - get the target and compute its SWHID
-                let target = fs::read_link(path)?;
-                // Resolve relative target path relative to symlink's parent directory
+                // Follow the symlink and compute SWHID of the target
+                let target = std::fs::read_link(path)?;
                 let resolved_target = if target.is_relative() {
                     path.parent().unwrap().join(&target)
                 } else {
                     target
                 };
-                if resolved_target.is_file() {
-                    self.compute_file_swhid(&resolved_target)
-                } else if resolved_target.is_dir() {
-                    self.compute_directory_swhid(&resolved_target)
-                } else {
-                    Err(SwhidError::InvalidPath("Symlink target is neither file nor directory".to_string()))
-                }
+                self.compute_swhid(resolved_target)
             } else {
-                // Treat symlink as content - the content is the target path
-                let target = fs::read_link(path)?;
+                // Hash the symlink target as content
+                let target = std::fs::read_link(path)?;
                 let target_bytes = target.to_string_lossy().as_bytes().to_vec();
-                
-                // Check size limit for symlink target
-                if let Some(max_len) = self.max_content_length {
-                    if target_bytes.len() > max_len {
-                        return Err(SwhidError::UnsupportedOperation(
-                            format!("Symlink too large ({} bytes)", target_bytes.len())
-                        ));
-                    }
-                }
-                
                 let content = content::Content::from_data(target_bytes);
                 Ok(content.swhid())
             }
@@ -117,20 +118,192 @@ impl SwhidComputer {
         } else if path.is_dir() {
             self.compute_directory_swhid(path)
         } else {
-            Err(SwhidError::InvalidPath("Path is neither file nor directory".to_string()))
+            Err(SwhidError::InvalidInput("Path is neither file nor directory".to_string()))
         }
     }
 
     /// Verify that a SWHID matches the computed SWHID for a path
-    pub fn verify_swhid<P: AsRef<Path>>(&self, expected_swhid: &str, path: P) -> Result<bool, SwhidError> {
+    pub fn verify_swhid<P: AsRef<Path>>(&self, path: P, expected_swhid: &str) -> Result<bool, SwhidError> {
         // Parse the expected SWHID
         let expected = Swhid::from_string(expected_swhid)?;
         
         // Compute the actual SWHID
         let actual = self.compute_swhid(path)?;
         
-        // Compare the SWHIDs
         Ok(expected == actual)
+    }
+
+    /// Compute a snapshot SWHID for a Git repository
+    pub fn compute_git_snapshot_swhid(&self, repo_path: &str) -> Result<Swhid, SwhidError> {
+        use git2::Repository;
+        use std::collections::HashMap;
+        use crate::snapshot::{Snapshot, SnapshotBranch, SnapshotTargetType};
+
+        let repo = Repository::open(repo_path)?;
+        let mut branches: HashMap<Vec<u8>, Option<SnapshotBranch>> = HashMap::new();
+
+        // Process all references (branches, tags, etc.)
+        for reference in repo.references()? {
+            let reference = reference?;
+            let name = reference.name().unwrap_or("").as_bytes().to_vec();
+            
+            if let Some(target) = reference.target() {
+                let target_id = target.as_bytes();
+                
+                // Convert Vec<u8> to [u8; 20] for SnapshotBranch
+                if target_id.len() == 20 {
+                    let mut target_array = [0u8; 20];
+                    target_array.copy_from_slice(&target_id);
+                    
+                    // Get the object type
+                    if let Ok(obj) = repo.find_object(target, None) {
+                        let target_type = match obj.kind() {
+                            Some(git2::ObjectType::Blob) => SnapshotTargetType::Content,
+                            Some(git2::ObjectType::Tree) => SnapshotTargetType::Directory,
+                            Some(git2::ObjectType::Commit) => SnapshotTargetType::Revision,
+                            Some(git2::ObjectType::Tag) => SnapshotTargetType::Release,
+                            _ => SnapshotTargetType::Revision, // Default fallback
+                        };
+
+                        let branch = SnapshotBranch::new(target_array, target_type);
+                        branches.insert(name, Some(branch));
+                    }
+                }
+            }
+        }
+
+        // Process symbolic references (like HEAD -> refs/heads/main)
+        for reference in repo.references()? {
+            let reference = reference?;
+            let name = reference.name().unwrap_or("").as_bytes().to_vec();
+            
+            if let Some(symbolic_target) = reference.symbolic_target() {
+                // For symbolic references, we need to resolve the target
+                if let Ok(target_ref) = repo.find_reference(symbolic_target) {
+                    if let Some(target) = target_ref.target() {
+                        let target_id = target.as_bytes();
+                        if target_id.len() == 20 {
+                            let mut target_array = [0u8; 20];
+                            target_array.copy_from_slice(&target_id);
+                            let branch = SnapshotBranch::new(target_array, SnapshotTargetType::Alias);
+                            branches.insert(name, Some(branch));
+                        }
+                    }
+                }
+            }
+        }
+
+        let snapshot = Snapshot::new(branches);
+        Ok(snapshot.swhid())
+    }
+
+    /// Compute a directory SWHID for the contents of an archive (tar, tgz, zip)
+    pub fn compute_archive_directory_swhid(&self, archive_path: &str) -> Result<Swhid, SwhidError> {
+        use tempfile::TempDir;
+
+        let archive_path = PathBuf::from(archive_path);
+        let temp_dir = TempDir::new()?;
+        let extract_path = temp_dir.path();
+
+        // Extract the archive based on its extension
+        let file_name = archive_path.file_name().unwrap_or_default().to_string_lossy();
+        
+        // Check for archive extensions
+        let archive_type = if file_name.ends_with(".tar.gz") || file_name.ends_with(".tgz") {
+            "tar.gz"
+        } else if file_name.ends_with(".tar.bz2") {
+            "tar.bz2"
+        } else if file_name.ends_with(".zip") {
+            "zip"
+        } else if let Some(extension) = archive_path.extension() {
+            let ext = extension.to_str().unwrap_or("").to_lowercase();
+            match ext.as_str() {
+                "tar" => "tar",
+                _ => {
+                    return Err(SwhidError::InvalidInput(format!(
+                        "Unsupported archive format: {:?}",
+                        extension
+                    )));
+                }
+            }
+        } else {
+            return Err(SwhidError::InvalidInput("Archive file has no extension".to_string()));
+        };
+        
+        match archive_type {
+            "tar" | "tar.gz" | "tar.bz2" => {
+                self.extract_tar(&archive_path, extract_path)?;
+            }
+            "zip" => {
+                self.extract_zip(&archive_path, extract_path)?;
+            }
+            _ => {
+                return Err(SwhidError::InvalidInput(format!(
+                    "Unsupported archive format: {}",
+                    archive_type
+                )));
+            }
+        }
+
+        // Find the root directory (usually the first directory or the archive name without extension)
+        let root_dir = self.find_archive_root_dir(extract_path, &archive_path)?;
+        
+        // Compute directory SWHID for the extracted contents
+        self.compute_directory_swhid(root_dir.to_str().unwrap())
+    }
+
+    fn extract_tar(&self, archive_path: &PathBuf, extract_path: &std::path::Path) -> Result<(), SwhidError> {
+        use std::fs::File;
+        use flate2::read::GzDecoder;
+        use bzip2::read::BzDecoder;
+        use std::io::BufReader;
+
+        let file = File::open(archive_path)?;
+        let reader: Box<dyn std::io::Read> = match archive_path.extension().and_then(|s| s.to_str()) {
+            Some("gz") | Some("tgz") => Box::new(GzDecoder::new(file)),
+            Some("bz2") => Box::new(BzDecoder::new(file)),
+            _ => Box::new(file),
+        };
+
+        let mut archive = tar::Archive::new(BufReader::new(reader));
+        archive.unpack(extract_path).map_err(|e| SwhidError::Archive(e.to_string()))?;
+        Ok(())
+    }
+
+    fn extract_zip(&self, archive_path: &PathBuf, extract_path: &std::path::Path) -> Result<(), SwhidError> {
+        use std::fs::File;
+        use std::io::BufReader;
+
+        let file = File::open(archive_path)?;
+        let mut archive = zip::ZipArchive::new(BufReader::new(file))?;
+        archive.extract(extract_path)?;
+        Ok(())
+    }
+
+    fn find_archive_root_dir(&self, extract_path: &std::path::Path, archive_path: &PathBuf) -> Result<PathBuf, SwhidError> {
+        // First, check if there's only one directory at the root
+        let entries: Vec<_> = extract_path.read_dir()?.collect();
+        
+        if entries.len() == 1 {
+            if let Ok(entry) = &entries[0] {
+                if entry.path().is_dir() {
+                    return Ok(entry.path());
+                }
+            }
+        }
+
+        // If no single root directory, use the archive name without extension
+        let archive_name = archive_path.file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or("extracted");
+        
+        let root_dir = extract_path.join(archive_name);
+        if root_dir.exists() && root_dir.is_dir() {
+            return Ok(root_dir);
+        }
+
+        // Fallback: use the extract path itself
+        Ok(extract_path.to_path_buf())
     }
 }
 
@@ -138,6 +311,7 @@ impl SwhidComputer {
 mod tests {
     use super::*;
     use std::fs;
+    use std::fs::File;
     use tempfile::TempDir;
 
     #[test]
@@ -163,6 +337,28 @@ mod tests {
 
         let computer = SwhidComputer::new();
         let swhid = computer.compute_directory_swhid(temp_dir.path()).unwrap();
+        
+        assert_eq!(swhid.object_type(), ObjectType::Directory);
+    }
+
+    #[test]
+    fn test_archive_directory_swhid() {
+        let temp_dir = TempDir::new().unwrap();
+        let archive_dir = temp_dir.path().join("archive_contents");
+        fs::create_dir(&archive_dir).unwrap();
+        fs::write(archive_dir.join("file.txt"), b"test content").unwrap();
+        
+        // Create a simple tar archive
+        let archive_path = temp_dir.path().join("test.tar");
+        {
+            let file = fs::File::create(&archive_path).unwrap();
+            let mut builder = tar::Builder::new(file);
+            builder.append_dir_all("", archive_dir).unwrap();
+            builder.finish().unwrap();
+        }
+
+        let computer = SwhidComputer::new();
+        let swhid = computer.compute_archive_directory_swhid(archive_path.to_str().unwrap()).unwrap();
         
         assert_eq!(swhid.object_type(), ObjectType::Directory);
     }

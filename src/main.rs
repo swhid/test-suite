@@ -1,247 +1,160 @@
-use std::io::{self, Read};
+use clap::Parser;
+use std::io::Read;
 use std::path::Path;
-use clap::{Parser, ValueEnum};
-use swhid::{SwhidComputer, SwhidError, traverse_directory_recursively, TreeObject};
+use swhid::{
+    directory::traverse_directory_recursively, SwhidComputer,
+};
 
 #[derive(Parser)]
-#[command(
-    name = "swhid-cli",
-    about = "Compute Software Heritage persistent identifiers (SWHID)",
-    long_about = "Compute the Software Heritage persistent identifier (SWHID) for the given source code object(s).
-
-For more details about SWHIDs see:
-https://docs.softwareheritage.org/devel/swh-model/persistent-identifiers.html
-
-Tip: you can pass \"-\" to identify the content of standard input.
-
-Examples:
-  $ swhid-cli fork.c kmod.c sched/deadline.c
-  swh:1:cnt:2e391c754ae730bd2d8520c2ab497c403220c6e3    fork.c
-  swh:1:cnt:0277d1216f80ae1adeed84a686ed34c9b2931fc2    kmod.c
-  swh:1:cnt:57b939c81bce5d06fa587df8915f05affbe22b82    sched/deadline.c
-
-  $ swhid-cli --no-filename /usr/src/linux/kernel/
-  swh:1:dir:f9f858a48d663b3809c9e2f336412717496202ab
-
-  $ echo \"Hello, World!\" | swhid-cli -
-  swh:1:cnt:8ab686eafeb1f44702738c8b0f24f2567c36da6d"
-)]
+#[command(name = "swhid-cli")]
+#[command(about = "Compute Software Heritage persistent identifiers")]
 struct Cli {
     /// Type of object to identify
-    #[arg(short, long, value_enum, default_value_t = ObjectType::Auto)]
-    object_type: ObjectType,
+    #[arg(short, long, default_value = "auto")]
+    obj_type: String,
 
-    /// Follow symlinks for objects passed as arguments
-    #[arg(long, default_value_t = true)]
+    /// Follow symlinks (default: follow)
+    #[arg(long, default_value = "true")]
     dereference: bool,
 
-    /// Do not follow symlinks for objects passed as arguments
+    /// Don't follow symlinks
     #[arg(long, conflicts_with = "dereference")]
     no_dereference: bool,
 
-    /// Show/hide file name
-    #[arg(long, default_value_t = true)]
+    /// Show filename in output
+    #[arg(long, default_value = "true")]
     filename: bool,
 
-    /// Hide file name (same as --no-filename)
-    #[arg(long)]
-    no_filename: bool,
-
-    /// Exclude directories using glob patterns (e.g., "*.git" to exclude all .git directories)
-    #[arg(short, long, value_name = "PATTERN")]
+    /// Exclude directories using glob patterns
+    #[arg(short, long)]
     exclude: Vec<String>,
 
     /// Reference identifier to be compared with computed one
-    #[arg(short, long, value_name = "SWHID")]
+    #[arg(short, long)]
     verify: Option<String>,
 
-    /// Compute SWHID recursively (only for directories)
+    /// Compute SWHID recursively
     #[arg(short, long)]
     recursive: bool,
 
-    /// Objects to identify (files, directories, or "-" for stdin)
-    #[arg(required = true)]
+    /// Treat file as archive and compute directory SWHID for its contents
+    #[arg(long)]
+    archive: bool,
+
+    /// Objects to identify
     objects: Vec<String>,
 }
 
-#[derive(ValueEnum, Clone, Debug, PartialEq)]
-enum ObjectType {
-    Auto,
-    Content,
-    Directory,
-    Origin,
-    Snapshot,
-}
-
-impl ObjectType {
-    fn as_str(&self) -> &'static str {
-        match self {
-            ObjectType::Auto => "auto",
-            ObjectType::Content => "content",
-            ObjectType::Directory => "directory",
-            ObjectType::Origin => "origin",
-            ObjectType::Snapshot => "snapshot",
-        }
-    }
-}
-
-fn detect_object_type(obj: &str) -> Result<ObjectType, SwhidError> {
-    if obj == "-" {
-        return Ok(ObjectType::Content);
-    }
-
-    let path = Path::new(obj);
-    if path.is_file() {
-        Ok(ObjectType::Content)
-    } else if path.is_dir() {
-        Ok(ObjectType::Directory)
-    } else {
-        // Try to parse as URL
-        if obj.contains("://") {
-            Ok(ObjectType::Origin)
-        } else {
-            Err(SwhidError::InvalidPath(format!(
-                "Cannot detect object type for {}",
-                obj
-            )))
-        }
-    }
-}
-
 fn identify_object(
-    obj_type: &ObjectType,
+    obj_type: &str,
     follow_symlinks: bool,
     exclude_patterns: &[String],
     obj: &str,
-) -> Result<String, SwhidError> {
-    let actual_type = match obj_type {
-        ObjectType::Auto => detect_object_type(obj)?,
-        _ => obj_type.clone(),
+    recursive: bool,
+    is_archive: bool,
+) -> Result<String, Box<dyn std::error::Error>> {
+    let mut computer = SwhidComputer::new()
+        .with_follow_symlinks(follow_symlinks)
+        .with_exclude_patterns(exclude_patterns);
+    
+    if recursive {
+        computer = computer.with_recursive(true);
+    }
+
+    let obj_type = if obj_type == "auto" {
+        if obj == "-" {
+            "content"
+        } else if Path::new(obj).is_file() {
+            if is_archive {
+                "directory" // Treat as directory when --archive flag is used
+            } else {
+                "content"
+            }
+        } else if Path::new(obj).is_dir() {
+            // Check if it's a Git repository first
+            let git_path = Path::new(obj).join(".git");
+            if git_path.exists() && git_path.is_dir() {
+                "snapshot"
+            } else {
+                "directory"
+            }
+        } else {
+            return Err("cannot detect object type".into());
+        }
+    } else {
+        obj_type
     };
 
-    let computer = SwhidComputer::new()
-        .with_follow_symlinks(follow_symlinks)
-        .with_exclude_patterns(exclude_patterns.to_vec());
-
-    match actual_type {
-        ObjectType::Content => {
+    match obj_type {
+        "content" => {
             if obj == "-" {
-                // Read from stdin
-                let mut data = Vec::new();
-                io::stdin().read_to_end(&mut data)?;
-                let content = swhid::content::Content::from_data(data);
-                Ok(content.swhid().to_string())
+                let mut content = Vec::new();
+                std::io::stdin().read_to_end(&mut content)?;
+                let swhid = computer.compute_content_swhid(&content)?;
+                Ok(swhid.to_string())
             } else {
-                let swhid = computer.compute_swhid(obj)?;
+                let swhid = computer.compute_file_swhid(obj)?;
                 Ok(swhid.to_string())
             }
         }
-        ObjectType::Directory => {
-            let swhid = computer.compute_directory_swhid(obj)?;
+        "directory" => {
+            if is_archive {
+                // Process as archive when --archive flag is used
+                let swhid = computer.compute_archive_directory_swhid(obj)?;
+                Ok(swhid.to_string())
+            } else {
+                if recursive {
+                    let objects = traverse_directory_recursively(obj, exclude_patterns, follow_symlinks)?;
+                    let mut results = Vec::new();
+                    for (path, mut obj) in objects {
+                        // The TreeObject already has its SWHID computed
+                        let swhid = obj.swhid();
+                        let display_path = if computer.filename {
+                            path.to_string_lossy().to_string()
+                        } else {
+                            "".to_string()
+                        };
+                        results.push(format!("{}\t{}", swhid, display_path));
+                    }
+                    Ok(results.join("\n"))
+                } else {
+                    let swhid = computer.compute_directory_swhid(obj)?;
+                    Ok(swhid.to_string())
+                }
+            }
+        }
+        "snapshot" => {
+            let swhid = computer.compute_git_snapshot_swhid(obj)?;
             Ok(swhid.to_string())
         }
-        ObjectType::Origin => {
-            // For now, we'll implement a basic origin SWHID
-            // In the full implementation, this would use the Origin model
-            Err(SwhidError::UnsupportedOperation(
-                "Origin SWHID computation not yet implemented".to_string(),
-            ))
-        }
-        ObjectType::Snapshot => {
-            // For now, we'll implement a basic snapshot SWHID
-            // In the full implementation, this would use the Snapshot model
-            Err(SwhidError::UnsupportedOperation(
-                "Snapshot SWHID computation not yet implemented".to_string(),
-            ))
-        }
-        ObjectType::Auto => unreachable!(), // Already handled above
+        _ => Err("invalid object type".into()),
     }
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cli = Cli::parse();
 
-    // Handle --no-dereference flag
     let follow_symlinks = !cli.no_dereference;
 
-    // Validate arguments
-    if let Some(ref verify_swhid) = cli.verify {
-        if cli.objects.len() != 1 {
-            eprintln!("Error: verification requires a single object");
-            std::process::exit(1);
-        }
-    }
+    for obj in &cli.objects {
+        let result = identify_object(&cli.obj_type, follow_symlinks, &cli.exclude, obj, cli.recursive, cli.archive)?;
 
-    if cli.recursive {
-        if cli.objects.len() != 1 {
-            eprintln!("Error: recursive option requires a single object");
-            std::process::exit(1);
-        }
-
-        let obj = &cli.objects[0];
-        if !Path::new(obj).is_dir() {
-            eprintln!("Warning: recursive option disabled, input is not a directory object");
-        } else if cli.object_type != ObjectType::Auto && cli.object_type != ObjectType::Directory {
-            eprintln!("Error: recursive identification is supported only for directories");
-            std::process::exit(1);
-        } else if cli.verify.is_some() {
-            eprintln!("Error: verification of recursive object identification is not supported");
-            std::process::exit(1);
-        } else {
-            // Implement recursive directory traversal
-            let objects = traverse_directory_recursively(
-                obj,
-                &cli.exclude,
-                follow_symlinks,
-            )?;
-
-            for (path, mut tree_obj) in objects {
-                let swhid = tree_obj.swhid();
-                let path_str = path.to_string_lossy();
-                
-                if cli.filename && !cli.no_filename {
-                    println!("{}\t{}", swhid, path_str);
-                } else {
-                    println!("{}", swhid);
-                }
+        if let Some(verify_swhid) = &cli.verify {
+            let computer = SwhidComputer::new();
+            let is_valid = computer.verify_swhid(obj, verify_swhid)?;
+            if is_valid {
+                println!("✓ SWHID verification successful");
+            } else {
+                println!("✗ SWHID verification failed");
+                std::process::exit(1);
             }
-            return Ok(());
-        }
-    }
-
-    // Process objects
-    if let Some(ref verify_swhid) = cli.verify {
-        let obj = &cli.objects[0];
-        let computed_swhid = identify_object(
-            &cli.object_type,
-            follow_symlinks,
-            &cli.exclude,
-            obj,
-        )?;
-
-        if verify_swhid == &computed_swhid {
-            println!("SWHID match: {}", computed_swhid);
-            std::process::exit(0);
         } else {
-            println!("SWHID mismatch: {} != {}", verify_swhid, computed_swhid);
-            std::process::exit(1);
-        }
-    } else {
-        for obj in &cli.objects {
-            match identify_object(&cli.object_type, follow_symlinks, &cli.exclude, obj) {
-                Ok(swhid) => {
-                                    let show_filename = cli.filename && !cli.no_filename;
-                if show_filename {
-                    println!("{}\t{}", swhid, obj);
-                } else {
-                    println!("{}", swhid);
-                }
-                }
-                Err(e) => {
-                    eprintln!("Error processing {}: {}", obj, e);
-                    std::process::exit(1);
-                }
-            }
+            let display_path = if cli.filename && obj != "-" {
+                format!("\t{}", obj)
+            } else {
+                "".to_string()
+            };
+            println!("{}{}", result, display_path);
         }
     }
 

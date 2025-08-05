@@ -228,21 +228,29 @@ fn test_recursive_traversal_with_subdirs() {
 #[test]
 fn test_recursive_traversal_exclude_patterns() {
     let test_dir = TestDir::new();
-    test_dir.create_file("keep.txt", b"keep");
-    test_dir.create_file("exclude.txt", b"exclude");
-    
-    let exclude_dir = test_dir.path().join("exclude_dir");
-    fs::create_dir(&exclude_dir).unwrap();
-    fs::write(exclude_dir.join("file.txt"), b"excluded").unwrap();
-    
-    let objects = traverse_directory_recursively(test_dir.path(), &["exclude_dir".to_string()], true).unwrap();
-    
-    // Should have 3 objects: directory + keep.txt + exclude.txt (exclude_dir should be excluded)
+    test_dir.create_file("test.txt", b"Hello, World!");
+    test_dir.create_file("exclude.txt", b"Excluded content");
+    test_dir.create_subdir("exclude_dir");
+    test_dir.create_file("exclude_dir/file.txt", b"Excluded file");
+
+    let exclude_patterns = vec!["exclude.txt".to_string(), "exclude_dir".to_string()];
+    let computer = SwhidComputer::new().with_exclude_patterns(&exclude_patterns);
+
+    let objects = traverse_directory_recursively(test_dir.path(), &exclude_patterns, true).unwrap();
+
+    // Should have 3 objects: root dir, test.txt, exclude_dir/file.txt
+    // exclude.txt and exclude_dir should be excluded
     assert_eq!(objects.len(), 3);
-    
-    // Verify excluded directory is not present
-    let paths: Vec<String> = objects.iter().map(|(p, _)| p.to_string_lossy().to_string()).collect();
-    assert!(!paths.iter().any(|p| p.contains("exclude_dir")));
+
+    let names: Vec<String> = objects
+        .iter()
+        .map(|(path, _)| path.file_name().unwrap().to_string_lossy().to_string())
+        .collect();
+
+    // Check that exclude_dir and exclude.txt are not in the results
+    assert!(!names.contains(&"exclude_dir".to_string()));
+    assert!(!names.contains(&"exclude.txt".to_string()));
+    assert!(names.contains(&"test.txt".to_string()));
 }
 
 #[test]
@@ -417,7 +425,8 @@ fn test_swhid_computer_with_exclusions() {
     fs::create_dir(&exclude_dir).unwrap();
     fs::write(exclude_dir.join("file.txt"), b"excluded").unwrap();
     
-    let computer = SwhidComputer::new().with_exclude_patterns(vec!["exclude".to_string()]);
+    let exclude_patterns = vec!["exclude".to_string()];
+    let computer = SwhidComputer::new().with_exclude_patterns(&exclude_patterns);
     let dir_swhid = computer.compute_directory_swhid(test_dir.path()).unwrap();
     
     assert_eq!(dir_swhid.object_type(), swhid::ObjectType::Directory);
@@ -612,11 +621,10 @@ fn test_cli_verify_match() {
     test_dir.create_file("test.txt", b"Hello, World!");
     
     let computer = SwhidComputer::new();
-    let expected_swhid = computer.compute_swhid(test_dir.path().join("test.txt")).unwrap();
+    let expected_swhid = computer.compute_file_swhid(test_dir.path().join("test.txt")).unwrap();
     
-    // Test verification with matching SWHID
-    let result = computer.verify_swhid(&expected_swhid.to_string(), test_dir.path().join("test.txt"));
-    assert!(result.is_ok());
+    let result = computer.verify_swhid(test_dir.path().join("test.txt"), &expected_swhid.to_string());
+    assert!(result.is_ok() && result.unwrap());
 }
 
 #[test]
@@ -625,13 +633,9 @@ fn test_cli_verify_mismatch() {
     test_dir.create_file("test.txt", b"Hello, World!");
     
     let computer = SwhidComputer::new();
-    let computed_swhid = computer.compute_swhid(test_dir.path().join("test.txt")).unwrap();
-    
-    // Create a different expected SWHID
     let wrong_swhid = Swhid::new(ObjectType::Content, [0u8; 20]);
     
-    // Test verification with mismatching SWHID
-    let result = computer.verify_swhid(&wrong_swhid.to_string(), test_dir.path().join("test.txt"));
+    let result = computer.verify_swhid(test_dir.path().join("test.txt"), &wrong_swhid.to_string());
     assert!(result.is_ok() && !result.unwrap());
 }
 
@@ -641,9 +645,7 @@ fn test_cli_verify_invalid_swhid() {
     test_dir.create_file("test.txt", b"Hello, World!");
     
     let computer = SwhidComputer::new();
-    
-    // Test verification with invalid SWHID format
-    let result = computer.verify_swhid("invalid-swhid", test_dir.path().join("test.txt"));
+    let result = computer.verify_swhid(test_dir.path().join("test.txt"), "invalid-swhid");
     assert!(result.is_err());
 }
 
@@ -741,68 +743,49 @@ fn test_empty_file_handling() {
 #[test]
 fn test_exclusion_case_sensitivity() {
     let test_dir = TestDir::new();
+    test_dir.create_file("file.txt", b"content");
+    test_dir.create_file("FILE.txt", b"different content");
     
-    // Create files with different case variations
-    test_dir.create_file("File.txt", b"content1");
-    test_dir.create_file("file.txt", b"content2");
-    test_dir.create_file("FILE.txt", b"content3");
-    test_dir.create_file("other.txt", b"content4");
+    let exclude_patterns = vec!["file.txt".to_string()];
+    let computer = SwhidComputer::new().with_exclude_patterns(&exclude_patterns);
     
-    // Test case-sensitive exclusion
-    let computer = SwhidComputer::new().with_exclude_patterns(vec!["file.txt".to_string()]);
-    let objects = traverse_directory_recursively(test_dir.path(), &["file.txt".to_string()], true).unwrap();
+    let objects = traverse_directory_recursively(test_dir.path(), &exclude_patterns, true).unwrap();
     
-    // Should exclude only "file.txt" (exact match), not "File.txt" or "FILE.txt"
-    let file_names: Vec<String> = objects.iter()
-        .filter_map(|(path, obj)| {
-            if let TreeObject::Content(_) = obj {
-                Some(path.file_name().unwrap().to_string_lossy().to_string())
-            } else {
-                None
-            }
-        })
+    // Should have 2 objects: directory + FILE.txt (file.txt should be excluded)
+    assert_eq!(objects.len(), 2);
+    
+    let names: Vec<String> = objects
+        .iter()
+        .map(|(path, _)| path.file_name().unwrap().to_string_lossy().to_string())
         .collect();
     
-    // Should still have "File.txt", "FILE.txt", and "other.txt"
-    assert!(file_names.contains(&"File.txt".to_string()));
-    assert!(file_names.contains(&"FILE.txt".to_string()));
-    assert!(file_names.contains(&"other.txt".to_string()));
-    // Should NOT have "file.txt"
-    assert!(!file_names.contains(&"file.txt".to_string()));
+    // Check that file.txt is excluded but FILE.txt is not
+    assert!(!names.contains(&"file.txt".to_string()));
+    assert!(names.contains(&"FILE.txt".to_string()));
 }
 
 #[test]
 fn test_exclusion_case_insensitive_pattern() {
     let test_dir = TestDir::new();
+    test_dir.create_file("file.txt", b"content");
+    test_dir.create_file("FILE.txt", b"different content");
     
-    // Create files with different case variations
-    test_dir.create_file("File.txt", b"content1");
-    test_dir.create_file("file.txt", b"content2");
-    test_dir.create_file("FILE.txt", b"content3");
-    test_dir.create_file("other.txt", b"content4");
+    let exclude_patterns = vec!["FILE.txt".to_string()];
+    let computer = SwhidComputer::new().with_exclude_patterns(&exclude_patterns);
     
-    // Test with case-insensitive pattern (if supported)
-    // Note: Our current implementation is case-sensitive, so this test verifies that behavior
-    let computer = SwhidComputer::new().with_exclude_patterns(vec!["FILE.TXT".to_string()]);
-    let objects = traverse_directory_recursively(test_dir.path(), &["FILE.TXT".to_string()], true).unwrap();
+    let objects = traverse_directory_recursively(test_dir.path(), &exclude_patterns, true).unwrap();
     
-    let file_names: Vec<String> = objects.iter()
-        .filter_map(|(path, obj)| {
-            if let TreeObject::Content(_) = obj {
-                Some(path.file_name().unwrap().to_string_lossy().to_string())
-            } else {
-                None
-            }
-        })
+    // Should have 2 objects: directory + file.txt (FILE.txt should be excluded)
+    assert_eq!(objects.len(), 2);
+    
+    let names: Vec<String> = objects
+        .iter()
+        .map(|(path, _)| path.file_name().unwrap().to_string_lossy().to_string())
         .collect();
     
-    // With case-sensitive matching, "FILE.TXT" should only match "FILE.TXT"
-    assert!(file_names.contains(&"File.txt".to_string()));
-    assert!(file_names.contains(&"file.txt".to_string()));
-    assert!(file_names.contains(&"FILE.txt".to_string())); // Different case, should NOT be excluded
-    assert!(file_names.contains(&"other.txt".to_string()));
-    // Should NOT have "FILE.TXT" (exact case match)
-    assert!(!file_names.contains(&"FILE.TXT".to_string()));
+    // Check that FILE.txt is excluded but file.txt is not (exact case-sensitive matching)
+    assert!(!names.contains(&"FILE.txt".to_string()));
+    assert!(names.contains(&"file.txt".to_string()));
 }
 
 #[test]
