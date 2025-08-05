@@ -1,4 +1,5 @@
 use std::path::Path;
+use std::fs;
 
 pub mod swhid;
 pub mod hash;
@@ -13,7 +14,8 @@ pub use swhid::{Swhid, ObjectType};
 pub use error::SwhidError;
 pub use person::Person;
 pub use timestamp::{Timestamp, TimestampWithTimezone};
-pub use directory::{TreeObject, traverse_directory_recursively};
+pub use directory::{TreeObject, traverse_directory_recursively, Directory, EntryType, Permissions};
+pub use content::Content;
 
 /// Main entry point for computing SWHIDs
 pub struct SwhidComputer {
@@ -62,7 +64,32 @@ impl SwhidComputer {
     pub fn compute_swhid<P: AsRef<Path>>(&self, path: P) -> Result<Swhid, SwhidError> {
         let path = path.as_ref();
         
-        if path.is_file() {
+        // Check if it's a symlink first
+        if path.is_symlink() {
+            if self.follow_symlinks {
+                // Follow the symlink - get the target and compute its SWHID
+                let target = fs::read_link(path)?;
+                // Resolve relative target path relative to symlink's parent directory
+                let resolved_target = if target.is_relative() {
+                    path.parent().unwrap().join(&target)
+                } else {
+                    target
+                };
+                if resolved_target.is_file() {
+                    self.compute_file_swhid(&resolved_target)
+                } else if resolved_target.is_dir() {
+                    self.compute_directory_swhid(&resolved_target)
+                } else {
+                    Err(SwhidError::InvalidPath("Symlink target is neither file nor directory".to_string()))
+                }
+            } else {
+                // Treat symlink as content - the content is the target path
+                let target = fs::read_link(path)?;
+                let target_bytes = target.to_string_lossy().as_bytes().to_vec();
+                let content = content::Content::from_data(target_bytes);
+                Ok(content.swhid())
+            }
+        } else if path.is_file() {
             self.compute_file_swhid(path)
         } else if path.is_dir() {
             self.compute_directory_swhid(path)
