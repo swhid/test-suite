@@ -1,0 +1,192 @@
+[
+  {
+    "payload_name": "empty_file",
+    "payload_path": "payloads/content/empty.txt",
+    "all_match": true,
+    "expected_swhid": "swh:1:cnt:0519ecba6ea913e21689ec692e81e9e4973fbf73",
+    "results": {
+      "git-cmd": {
+        "swhid": "swh:1:cnt:0519ecba6ea913e21689ec692e81e9e4973fbf73",
+        "error": null,
+        "duration": 0.006987810134887695,
+        "success": true
+      },
+      "git": {
+        "swhid": "swh:1:cnt:0519ecba6ea913e21689ec692e81e9e4973fbf73",
+        "error": null,
+        "duration": 0.018425703048706055,
+        "success": true
+      },
+      "pygit2": {
+        "swhid": "swh:1:cnt:0519ecba6ea913e21689ec692e81e9e4973fbf73",
+        "error": null,
+        "duration": 0.04448294639587402,
+        "success": true
+      },
+      "python": {
+        "swhid": "swh:1:cnt:0519ecba6ea913e21689ec692e81e9e4973fbf73",
+        "error": null,
+        "duration": 0.08746743202209473,
+        "success": true
+      },
+      "rust": {
+        "swhid": "swh:1:cnt:0519ecba6ea913e21689ec692e81e9e4973fbf73",
+        "error": null,
+        "duration": 0.09769177436828613,
+        "success": true
+      }
+    }
+  },
+  {
+    "payload_name": "hello_world",
+    "payload_path": "payloads/content/hello.txt",
+    "all_match": true,
+    "expected_swhid": null,
+    "results": {
+      "git": {
+        "swhid": "swh:1:cnt:f732d2ae1a449d8204f266b59bb35cb4eb0e899d",
+        "error": null,
+        "duration": 0.0007960796356201172,
+        "success": true
+      },
+      "pygit2": {
+        "swhid": "swh:1:cnt:f732d2ae1a449d8204f266b59bb35cb4eb0e899d",
+        "error": null,
+        "duration": 0.0025382041931152344,
+        "success": true
+      },
+      "git-cmd": {
+        "swhid": "swh:1:cnt:f732d2ae1a449d8204f266b59bb35cb4eb0e899d",
+        "error": null,
+        "duration": 0.0043277740478515625,
+        "success": true
+      },
+      "rust": {
+        "swhid": "swh:1:cnt:f732d2ae1a449d8204f266b59bb35cb4eb0e899d",
+        "error": null,
+        "duration": 0.08853697776794434,
+        "success": true
+      },
+      "python": {
+        "swhid": "swh:1:cnt:f732d2ae1a449d8204f266b59bb35cb4eb0e899d",
+        "error": null,
+        "duration": 0.09130167961120605,
+        "success": true
+      }
+    }
+  },
+  {
+    "payload_name": "unicode_text",
+    "payload_path": "payloads/content/unicode.txt",
+    "all_match": true,
+    "expected_swhid": null,
+    "results": {
+      "git": {
+        "swhid": "swh:1:cnt:a5c8b6044dbae83d6d31ce1d66f09b9900d0556a",
+        "error": null,
+        "duration": 0.0013055801391601562,
+        "success": true
+      },
+      "pygit2": {
+        "swhid": "swh:1:cnt:a5c8b6044dbae83d6d31ce1d66f09b9900d0556a",
+        "error": null,
+        "duration": 0.001967906951904297,
+        "success": true
+      },
+      "git-cmd": {
+        "swhid": "swh:1:cnt:a5c8b6044dbae83d6d31ce1d66f09b9900d0556a",
+        "error": null,
+        "duration": 0.0037915706634521484,
+        "success": true
+      },
+      "python": {
+        "swhid": "swh:1:cnt:a5c8b6044dbae83d6d31ce1d66f09b9900d0556a",
+        "error": null,
+        "duration": 0.09109902381896973,
+        "success": true
+      },
+      "rust": {
+        "swhid": "swh:1:cnt:a5c8b6044dbae83d6d31ce1d66f09b9900d0556a",
+        "error": null,
+        "duration": 0.09351897239685059,
+        "success": true
+      }
+    }
+  },
+  {
+    "payload_name": "simple_dir",
+    "payload_path": "payloads/directory/simple/",
+    "all_match": true,
+    "expected_swhid": null,
+    "results": {
+      "git": {
+        "swhid": "swh:1:dir:3f09c252c646f8ac591d60e02e41ab09274de7c1",
+        "error": null,
+        "duration": 0.01315450668334961,
+        "success": true
+      },
+      "git-cmd": {
+        "swhid": "swh:1:dir:3f09c252c646f8ac591d60e02e41ab09274de7c1",
+        "error": null,
+        "duration": 0.01344752311706543,
+        "success": true
+      },
+      "pygit2": {
+        "swhid": "swh:1:dir:3f09c252c646f8ac591d60e02e41ab09274de7c1",
+        "error": null,
+        "duration": 0.0037763118743896484,
+        "success": true
+      },
+      "python": {
+        "swhid": "swh:1:dir:3f09c252c646f8ac591d60e02e41ab09274de7c1",
+        "error": null,
+        "duration": 0.09187054634094238,
+        "success": true
+      },
+      "rust": {
+        "swhid": "swh:1:dir:3f09c252c646f8ac591d60e02e41ab09274de7c1",
+        "error": null,
+        "duration": 0.09323477745056152,
+        "success": true
+      }
+    }
+  },
+  {
+    "payload_name": "nested_dir",
+    "payload_path": "payloads/directory/nested/",
+    "all_match": true,
+    "expected_swhid": null,
+    "results": {
+      "git": {
+        "swhid": "swh:1:dir:0bbbf9c7f265450b510251ff215a729f062a763a",
+        "error": null,
+        "duration": 0.013264179229736328,
+        "success": true
+      },
+      "pygit2": {
+        "swhid": "swh:1:dir:0bbbf9c7f265450b510251ff215a729f062a763a",
+        "error": null,
+        "duration": 0.0021796226501464844,
+        "success": true
+      },
+      "git-cmd": {
+        "swhid": "swh:1:dir:0bbbf9c7f265450b510251ff215a729f062a763a",
+        "error": null,
+        "duration": 0.014943122863769531,
+        "success": true
+      },
+      "python": {
+        "swhid": "swh:1:dir:0bbbf9c7f265450b510251ff215a729f062a763a",
+        "error": null,
+        "duration": 0.08991289138793945,
+        "success": true
+      },
+      "rust": {
+        "swhid": "swh:1:dir:0bbbf9c7f265450b510251ff215a729f062a763a",
+        "error": null,
+        "duration": 0.09257268905639648,
+        "success": true
+      }
+    }
+  }
+]

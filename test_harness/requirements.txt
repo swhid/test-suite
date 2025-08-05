@@ -1,3 +1,4 @@
 PyYAML>=6.0
 pathlib2>=2.3.7
-dulwich>=0.21.0 
+dulwich>=0.21.0
+pygit2>=1.12.0 

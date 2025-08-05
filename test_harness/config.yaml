@@ -19,6 +19,18 @@ implementations:
     runner: "runners/git_runner.py"
     command: "python -c 'import dulwich'"
     enabled: true
+    
+  git-cmd:
+    name: "Git Command Implementation"
+    runner: "runners/git_cmd_runner.py"
+    command: "git --version"
+    enabled: true
+    
+  pygit2:
+    name: "Git Implementation (pygit2)"
+    runner: "runners/pygit2_runner.py"
+    command: "python -c 'import pygit2'"
+    enabled: true
 
 # Test payloads organized by category
 payloads:
