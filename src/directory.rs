@@ -1,5 +1,6 @@
 use std::fs;
 use std::os::unix::fs::MetadataExt;
+use std::os::unix::ffi::OsStrExt;
 use std::path::{Path, PathBuf};
 use crate::swhid::{Swhid, ObjectType};
 use crate::content::Content;
@@ -78,6 +79,7 @@ impl DirectoryEntry {
 pub struct Directory {
     entries: Vec<DirectoryEntry>,
     hash: Option<[u8; 20]>,
+    path: Option<PathBuf>,
 }
 
 impl Directory {
@@ -87,28 +89,43 @@ impl Directory {
         exclude_patterns: &[String],
         follow_symlinks: bool,
     ) -> Result<Self, SwhidError> {
-        Self::from_disk_with_hash_fn(path, exclude_patterns, follow_symlinks, |_| Ok([0u8; 20]))
+        let path = path.as_ref();
+        let mut dir = Self::from_disk_with_hash_fn(path, exclude_patterns, follow_symlinks, |_| Ok([0u8; 20]))?;
+        dir.path = Some(path.to_path_buf());
+        Ok(dir)
     }
 
     pub fn from_disk_with_hash_fn<P: AsRef<Path>, F>(
         path: P,
         exclude_patterns: &[String],
         follow_symlinks: bool,
-        hash_fn: F,
+        mut hash_fn: F,
     ) -> Result<Self, SwhidError>
     where
-        F: Fn(&Path) -> Result<[u8; 20], SwhidError>,
+        F: FnMut(&Path) -> Result<[u8; 20], SwhidError>,
     {
         let path = path.as_ref();
         let mut entries = Vec::new();
+        let mut raw_entries = Vec::new();
 
+        // First, collect all directory entries
         for entry in fs::read_dir(path)? {
-            let entry = entry?;
+            raw_entries.push(entry?);
+        }
+
+        // Sort raw entries by name to ensure consistent order
+        raw_entries.sort_by(|a, b| {
+            let name_a = a.file_name();
+            let name_b = b.file_name();
+            name_a.cmp(&name_b)
+        });
+
+        for entry in raw_entries {
             let name = entry.file_name();
             let name_bytes = name.to_string_lossy().as_bytes().to_vec();
 
-            // Skip hidden files and excluded patterns
-            if name_bytes.starts_with(b".") || Self::should_exclude(&name_bytes, exclude_patterns) {
+            // Skip hidden files
+            if name_bytes.starts_with(b".") {
                 continue;
             }
 
@@ -117,6 +134,11 @@ impl Directory {
             } else {
                 entry.metadata()? // Note: symlink_metadata() is not available on DirEntry
             };
+
+            // Skip excluded directories (but not files)
+            if metadata.is_dir() && Self::should_exclude(&name_bytes, exclude_patterns) {
+                continue;
+            }
 
             let entry_type = if metadata.is_dir() {
                 EntryType::Directory
@@ -133,8 +155,18 @@ impl Directory {
                 // Compute content hash
                 let content = Content::from_file(entry.path())?;
                 *content.sha1_git()
+            } else if entry_type == EntryType::Symlink {
+                // Handle symlinks - read the symlink target as content
+                if let Ok(target_path) = fs::read_link(entry.path()) {
+                    let target_bytes = target_path.to_string_lossy().as_bytes().to_vec();
+                    let content = Content::from_data(target_bytes);
+                    *content.sha1_git()
+                } else {
+                    // Skip broken symlinks
+                    continue;
+                }
             } else {
-                // Use the provided hash function for directories and symlinks
+                // Use the provided hash function for directories
                 hash_fn(&entry.path())?
             };
 
@@ -147,6 +179,7 @@ impl Directory {
         Ok(Self {
             entries,
             hash: None,
+            path: None,
         })
     }
 
@@ -165,13 +198,21 @@ impl Directory {
 
         for entry in &self.entries {
             // Format: perms + space + name + null + target
-            let perms_str = format!("{:o}", entry.permissions.as_octal());
+            // Use exact string format as per SWHID specification
+            let perms_str = match entry.permissions {
+                Permissions::File => "100644",
+                Permissions::Executable => "100755", 
+                Permissions::Symlink => "120000",
+                Permissions::Directory => "40000",
+            };
             components.extend_from_slice(perms_str.as_bytes());
             components.push(b' ');
             components.extend_from_slice(&entry.name);
             components.push(0);
             components.extend_from_slice(&entry.target);
         }
+
+
 
         let hash = hash_git_object("tree", &components);
         self.hash = Some(hash);
@@ -188,7 +229,7 @@ impl Directory {
 
     /// Get the path associated with this directory (for recursive traversal)
     pub fn path(&self) -> Option<&Path> {
-        None // TODO: Add path tracking
+        self.path.as_deref()
     }
 
     /// Entry sorting key (Git's tree sorting rules)
@@ -208,16 +249,19 @@ impl Directory {
 }
 
 /// Check if entry should be excluded based on patterns (string version)
+/// Uses shell pattern matching like Python's fnmatch
 fn should_exclude_str(name: &str, patterns: &[String]) -> bool {
     for pattern in patterns {
-        if name.contains(pattern) {
+        // Simple shell pattern matching - for now just exact match
+        // TODO: Implement full shell pattern matching like Python's fnmatch
+        if name == pattern {
             return true;
         }
     }
     false
 }
 
-/// Recursively traverse a directory and yield all objects
+/// Recursively traverse a directory and yield all objects (matching Python iter_tree behavior)
 pub fn traverse_directory_recursively<P: AsRef<Path>>(
     root_path: P,
     exclude_patterns: &[String],
@@ -225,23 +269,258 @@ pub fn traverse_directory_recursively<P: AsRef<Path>>(
 ) -> Result<Vec<(PathBuf, TreeObject)>, SwhidError> {
     let root_path = root_path.as_ref();
     
-    // Build a cache of directory hashes
-    let mut hash_cache = std::collections::HashMap::new();
+    // Step 1: Build the entire directory tree structure without computing hashes
+    let mut dir_tree = build_directory_tree(root_path, exclude_patterns, follow_symlinks)?;
     
-    // First pass: collect all content objects and compute their hashes
-    let mut content_objects = Vec::new();
-    collect_content_objects(root_path, exclude_patterns, follow_symlinks, &mut content_objects)?;
+    // Step 2: Compute hashes bottom-up (leaves first, then parents)
+    compute_hashes_bottom_up(&mut dir_tree, exclude_patterns, follow_symlinks)?;
     
-    // Second pass: compute directory hashes using the content hashes
-    let mut directory_objects = Vec::new();
-    compute_directory_hashes(root_path, exclude_patterns, follow_symlinks, &mut hash_cache, &mut directory_objects)?;
-    
-    // Combine all objects
+    // Step 3: Collect all objects in the correct order (matching Python iter_tree)
     let mut all_objects = Vec::new();
-    all_objects.extend(content_objects);
-    all_objects.extend(directory_objects);
+    collect_tree_objects_from_tree(&dir_tree, root_path, exclude_patterns, follow_symlinks, &mut all_objects)?;
     
     Ok(all_objects)
+}
+
+/// Directory tree node for building the structure
+struct DirectoryTreeNode {
+    path: PathBuf,
+    entries: Vec<DirectoryEntry>,
+    children: Vec<DirectoryTreeNode>,
+    hash: Option<[u8; 20]>,
+}
+
+impl DirectoryTreeNode {
+    fn new(path: PathBuf) -> Self {
+        Self {
+            path,
+            entries: Vec::new(),
+            children: Vec::new(),
+            hash: None,
+        }
+    }
+    
+    fn to_directory(&self) -> Directory {
+        Directory {
+            entries: self.entries.clone(),
+            hash: self.hash,
+            path: Some(self.path.clone()),
+        }
+    }
+}
+
+/// Build the directory tree structure without computing hashes
+fn build_directory_tree(
+    path: &Path,
+    exclude_patterns: &[String],
+    follow_symlinks: bool,
+) -> Result<DirectoryTreeNode, SwhidError> {
+    let mut node = DirectoryTreeNode::new(path.to_path_buf());
+    let mut raw_entries = Vec::new();
+
+    // Collect all directory entries
+    for entry in fs::read_dir(path)? {
+        raw_entries.push(entry?);
+    }
+
+    // Sort raw entries by name to ensure consistent order
+    raw_entries.sort_by(|a, b| {
+        let name_a = a.file_name();
+        let name_b = b.file_name();
+        name_a.cmp(&name_b)
+    });
+
+    for entry in raw_entries {
+        let name = entry.file_name();
+        let name_bytes = name.to_string_lossy().as_bytes().to_vec();
+
+        // Skip hidden files
+        if name_bytes.starts_with(b".") {
+            continue;
+        }
+
+        let metadata = if follow_symlinks {
+            entry.metadata()?
+        } else {
+            entry.metadata()?
+        };
+
+        // Skip excluded directories (but not files)
+        if metadata.is_dir() && should_exclude_str(&String::from_utf8_lossy(&name_bytes), exclude_patterns) {
+            continue;
+        }
+
+        let entry_type = if metadata.is_dir() {
+            EntryType::Directory
+        } else if metadata.is_symlink() {
+            EntryType::Symlink
+        } else {
+            EntryType::File
+        };
+
+        let permissions = Permissions::from_mode(metadata.mode());
+
+        // For now, use dummy hashes - we'll compute real ones later
+        let target = if entry_type == EntryType::File {
+            // Compute content hash immediately
+            let content = Content::from_file(entry.path())?;
+            *content.sha1_git()
+        } else if entry_type == EntryType::Symlink {
+            // Handle symlinks - read the symlink target as content
+            if let Ok(target_path) = fs::read_link(entry.path()) {
+                let target_bytes = target_path.to_string_lossy().as_bytes().to_vec();
+                let content = Content::from_data(target_bytes);
+                *content.sha1_git()
+            } else {
+                // Skip broken symlinks
+                continue;
+            }
+        } else {
+            // Directory - use dummy hash for now
+            [0u8; 20]
+        };
+
+        let dir_entry = DirectoryEntry::new(name_bytes, entry_type, permissions, target);
+        node.entries.push(dir_entry);
+
+        // Recursively build child directories
+        if entry_type == EntryType::Directory {
+            let child_node = build_directory_tree(&entry.path(), exclude_patterns, follow_symlinks)?;
+            node.children.push(child_node);
+        }
+    }
+
+    // Sort entries according to Git's tree sorting rules
+    node.entries.sort_by(|a, b| Directory::entry_sort_key(a).cmp(&Directory::entry_sort_key(b)));
+
+    Ok(node)
+}
+
+/// Compute hashes bottom-up (leaves first, then parents)
+fn compute_hashes_bottom_up(
+    node: &mut DirectoryTreeNode,
+    exclude_patterns: &[String],
+    follow_symlinks: bool,
+) -> Result<(), SwhidError> {
+
+    
+    // First, compute hashes for all children (bottom-up)
+    for child in &mut node.children {
+        compute_hashes_bottom_up(child, exclude_patterns, follow_symlinks)?;
+    }
+
+    // Now update the directory entries with correct child hashes
+    for entry in &mut node.entries {
+        if entry.entry_type == EntryType::Directory {
+            // Find the corresponding child node
+            let child_name = String::from_utf8_lossy(&entry.name);
+            if let Some(child) = node.children.iter().find(|c| {
+                c.path.file_name().map(|n| n.to_string_lossy()) == Some(child_name.clone())
+            }) {
+                // Use the child's computed hash
+                if let Some(child_hash) = child.hash {
+                    entry.target = child_hash;
+                }
+            }
+        }
+    }
+
+    // Now compute this node's hash
+    let mut temp_dir = Directory {
+        entries: node.entries.clone(),
+        hash: None,
+        path: Some(node.path.clone()),
+    };
+    node.hash = Some(temp_dir.compute_hash());
+
+    Ok(())
+}
+
+/// Collect all objects from the tree in the correct order
+fn collect_tree_objects_from_tree(
+    node: &DirectoryTreeNode,
+    dir_path: &Path,
+    exclude_patterns: &[String],
+    follow_symlinks: bool,
+    objects: &mut Vec<(PathBuf, TreeObject)>,
+) -> Result<(), SwhidError> {
+    // First, add this directory itself (matching Python behavior)
+    let dir = node.to_directory();
+    objects.push((dir_path.to_path_buf(), TreeObject::Directory(dir)));
+    
+    // Then recursively add all children
+    for entry in &node.entries {
+        let child_path = dir_path.join(std::ffi::OsStr::from_bytes(&entry.name));
+        
+        match entry.entry_type {
+            EntryType::File => {
+                // Content objects are already computed during tree building
+                let content = Content::from_file(&child_path)?;
+                objects.push((child_path, TreeObject::Content(content)));
+            }
+            EntryType::Directory => {
+                // Find the corresponding child node and recurse
+                let child_name = String::from_utf8_lossy(&entry.name);
+                if let Some(child) = node.children.iter().find(|c| {
+                    c.path.file_name().map(|n| n.to_string_lossy()) == Some(child_name.clone())
+                }) {
+                    collect_tree_objects_from_tree(child, &child_path, exclude_patterns, follow_symlinks, objects)?;
+                }
+            }
+            EntryType::Symlink => {
+                // Handle symlinks as content (link target)
+                if let Ok(target_path) = fs::read_link(&child_path) {
+                    let target_bytes = target_path.to_string_lossy().as_bytes().to_vec();
+                    let content = Content::from_data(target_bytes);
+                    objects.push((child_path, TreeObject::Content(content)));
+                }
+            }
+        }
+    }
+    
+    Ok(())
+}
+
+/// Collect all objects from the tree in the correct order (matching Python iter_tree)
+fn collect_tree_objects(
+    dir: &mut Directory,
+    dir_path: &Path,
+    exclude_patterns: &[String],
+    follow_symlinks: bool,
+    objects: &mut Vec<(PathBuf, TreeObject)>,
+) -> Result<(), SwhidError> {
+    // First, add this directory itself (matching Python behavior)
+    objects.push((dir_path.to_path_buf(), TreeObject::Directory(dir.clone())));
+    
+    // Then recursively add all children
+    for entry in &dir.entries {
+        let child_path = dir_path.join(std::ffi::OsStr::from_bytes(&entry.name));
+        
+        match entry.entry_type {
+            EntryType::File => {
+                // Content objects are already computed during directory creation
+                let content = Content::from_file(&child_path)?;
+                objects.push((child_path, TreeObject::Content(content)));
+            }
+            EntryType::Directory => {
+                // The subdirectory hash is already computed in the target field
+                // We don't need to recreate the directory, just add it to the objects
+                // The target hash should be the correct subdirectory hash
+                let mut subdir = Directory::from_disk(&child_path, exclude_patterns, follow_symlinks)?;
+                collect_tree_objects(&mut subdir, &child_path, exclude_patterns, follow_symlinks, objects)?;
+            }
+            EntryType::Symlink => {
+                // Handle symlinks as content (link target)
+                if let Ok(target_path) = fs::read_link(&child_path) {
+                    let target_bytes = target_path.to_string_lossy().as_bytes().to_vec();
+                    let content = Content::from_data(target_bytes);
+                    objects.push((child_path, TreeObject::Content(content)));
+                }
+            }
+        }
+    }
+    
+    Ok(())
 }
 
 /// Collect all content objects recursively
