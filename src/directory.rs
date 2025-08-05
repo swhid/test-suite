@@ -90,7 +90,11 @@ impl Directory {
         follow_symlinks: bool,
     ) -> Result<Self, SwhidError> {
         let path = path.as_ref();
-        let mut dir = Self::from_disk_with_hash_fn(path, exclude_patterns, follow_symlinks, |_| Ok([0u8; 20]))?;
+        let mut dir = Self::from_disk_with_hash_fn(path, exclude_patterns, follow_symlinks, |subdir_path| {
+            // Recursively compute the hash of subdirectories
+            let mut subdir = Self::from_disk(subdir_path, exclude_patterns, follow_symlinks)?;
+            Ok(subdir.compute_hash())
+        })?;
         dir.path = Some(path.to_path_buf());
         Ok(dir)
     }
@@ -173,21 +177,8 @@ impl Directory {
             entries.push(DirectoryEntry::new(name_bytes, entry_type, permissions, target));
         }
 
-        // Sort entries according to Git's tree sorting rules:
-        // 1. Directories first (with trailing slash in name)
-        // 2. Files second
-        // 3. Within each group, sorted by byte order
-        entries.sort_by(|a, b| {
-            // First, sort by type (directories before files)
-            match (a.entry_type, b.entry_type) {
-                (EntryType::Directory, EntryType::File) => std::cmp::Ordering::Less,
-                (EntryType::File, EntryType::Directory) => std::cmp::Ordering::Greater,
-                _ => {
-                    // Within same type, sort by byte order
-                    a.name.cmp(&b.name)
-                }
-            }
-        });
+        // Sort entries according to Git's tree sorting rules
+        entries.sort_by(|a, b| Directory::entry_sort_key(a).cmp(&Directory::entry_sort_key(b)));
 
         Ok(Self {
             entries,
@@ -224,8 +215,6 @@ impl Directory {
             components.push(0);
             components.extend_from_slice(&entry.target);
         }
-
-
 
         let hash = hash_git_object("tree", &components);
         self.hash = Some(hash);
@@ -416,7 +405,6 @@ fn compute_hashes_bottom_up(
     follow_symlinks: bool,
 ) -> Result<(), SwhidError> {
 
-    
     // First, compute hashes for all children (bottom-up)
     for child in &mut node.children {
         compute_hashes_bottom_up(child, exclude_patterns, follow_symlinks)?;
