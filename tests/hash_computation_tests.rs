@@ -238,9 +238,9 @@ fn test_recursive_traversal_exclude_patterns() {
 
     let objects = traverse_directory_recursively(test_dir.path(), &exclude_patterns, true).unwrap();
 
-    // Should have 3 objects: root dir, test.txt, exclude_dir/file.txt
-    // exclude.txt and exclude_dir should be excluded
-    assert_eq!(objects.len(), 3);
+    // Should have 2 objects: root dir, test.txt
+    // exclude.txt and exclude_dir (and all its contents) should be excluded
+    assert_eq!(objects.len(), 2);
 
     let names: Vec<String> = objects
         .iter()
