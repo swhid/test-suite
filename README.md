@@ -219,6 +219,47 @@ See the `examples/` directory for complete working examples:
 
 - `extended_swhid_example.rs` - Extended and Qualified SWHID usage
 
+## Performance
+
+The Rust implementation provides excellent performance compared to other SWHID implementations. Performance benchmarks were conducted on the `swh-model` directory (20.6 MB, 381 files) using multiple iterations to ensure accuracy.
+
+### Performance Comparison
+
+| Implementation | Mean Time | Relative Speed | Notes |
+|----------------|-----------|----------------|-------|
+| **Rust (Binary)** | 0.020s | 1.0x | Pre-compiled binary |
+| **Git Command** | 0.072s | 3.5x | Official Git tool |
+| **Python (swh-model)** | 0.173s | 8.4x | Production implementation |
+| **Rust (Subprocess)** | 0.226s | 11.0x | Subprocess overhead |
+| **Git (dulwich)** | 1.437s | 70.2x | Pure Python library |
+
+### Key Performance Insights
+
+- **Rust Binary**: Fastest implementation at 0.020s average
+- **3.5x faster than Git command**: Native performance advantage
+- **8.4x faster than Python**: Significant speedup over reference implementation
+- **Subprocess overhead**: 11x performance penalty when using subprocess calls
+
+### Running Performance Tests
+
+To run performance comparisons:
+
+```bash
+# Build the Rust implementation
+cargo build --release
+
+# Run performance test (uses swh-model directory by default)
+python scripts/performance_test.py
+
+# Test on a different directory
+python scripts/performance_test.py /path/to/test/directory
+```
+
+Requirements for performance testing:
+- Rust implementation built: `cargo build --release`
+- Python swh-model installed: `pip install swh-model`
+- Git tools available: `git`, `dulwich`, `pygit2`
+
 ## Testing
 
 Run the test suite:
