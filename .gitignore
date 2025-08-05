@@ -19,3 +19,6 @@ Thumbs.db
 # Temporary files
 *.tmp
 *.temp
+
+# Performance test results
+performance_results.txt
