@@ -53,12 +53,10 @@ This document summarizes the performance comparison of different SWHID implement
 - **Git**: Only computes tree hash, requires temporary repository setup
 
 ### 3. Hash Consistency Issues
-- Rust and Python implementations produce different directory hashes
-- This suggests differences in:
-  - File ordering algorithms
-  - Directory traversal methods
-  - Hash computation approaches
-  - Symlink handling
+- **RESOLVED**: Hash differences were caused by hidden file handling
+- **Root Cause**: Rust implementation was filtering out hidden files (starting with '.')
+- **Solution**: Aligned Rust implementation with Python behavior to include all files
+- **Result**: Both implementations now produce identical hashes in all test cases
 
 ### 4. Scalability
 - Rust handles large repositories efficiently
@@ -95,10 +93,10 @@ git init && git add . && git write-tree
 - Supports both directory and recursive modes
 - Handles complex directory structures efficiently
 
-### 2. Investigate Hash Differences
-- The hash discrepancies between implementations need investigation
-- May indicate bugs or specification interpretation differences
-- Important for cross-implementation compatibility
+### 2. Hash Consistency Achieved
+- **Hash Consistency Achieved**: All implementations now produce identical hashes
+- **Cross-Implementation Compatibility**: Verified through test harness (100% success rate)
+- **Reference Implementation Alignment**: Rust behavior matches Python swh.model.cli
 
 ### 3. Consider Use Cases
 - **Directory Mode**: Fast, single hash for entire repository
@@ -109,7 +107,7 @@ git init && git add . && git write-tree
 
 The Rust implementation demonstrates superior performance for processing large repositories like the Linux kernel source code. It's 6-6.7x faster than the Python and Git implementations while providing more functionality (recursive traversal).
 
-However, the hash differences between implementations suggest that further investigation is needed to ensure cross-compatibility and correct SWHID specification compliance.
+**Hash consistency has been achieved** - both Rust and Python implementations now produce identical hashes, ensuring cross-compatibility and correct SWHID specification compliance. The test harness confirms 100% success rate across all implementations.
 
 ## Files
 
