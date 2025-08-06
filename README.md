@@ -219,6 +219,19 @@ See the `examples/` directory for complete working examples:
 
 - `extended_swhid_example.rs` - Extended and Qualified SWHID usage
 
+## Security
+
+### SHA1DC Compliance
+
+This implementation uses **SHA1DC (SHA-1 with detection of collision)** as required by the SWHID specification to prevent SHATTERED-style attacks. This is a **mandatory security requirement** that ensures:
+
+- **Collision Detection**: Automatically detects known collision patterns
+- **Attack Prevention**: Prevents malicious actors from fabricating SWHID objects
+- **Specification Compliance**: Meets SWHID security requirements (Section 5.8)
+- **Git Compatibility**: Matches Git's SHA1DC usage since 2017
+
+The implementation uses the `sha1-checked` crate which provides SHA-1 with built-in collision detection, ensuring that SWHID identifiers remain unique and secure even in the presence of SHA-1 collision attacks.
+
 ## Performance
 
 The Rust implementation provides excellent performance compared to other SWHID implementations. Performance benchmarks were conducted on the `swh-model` directory (20.6 MB, 381 files) using multiple iterations to ensure accuracy.
