@@ -92,17 +92,33 @@ def compute_directory_swhid(dir_path: str) -> str:
         # Initialize Git repository
         repo = dulwich.repo.Repo.init(repo_path)
         
-        # Copy the directory contents to the repo
-        target_path = os.path.join(repo_path, "target")
+        # Copy the directory contents maintaining the structure
         if os.path.isdir(dir_path):
-            shutil.copytree(dir_path, target_path)
+            # Copy the entire directory structure, ignoring symlinks
+            for root, dirs, files in os.walk(dir_path):
+                # Create corresponding directory in repo
+                rel_path = os.path.relpath(root, dir_path)
+                repo_dir = os.path.join(repo_path, rel_path)
+                os.makedirs(repo_dir, exist_ok=True)
+                
+                # Copy files, skipping symlinks
+                for file in files:
+                    src_file = os.path.join(root, file)
+                    dst_file = os.path.join(repo_dir, file)
+                    
+                    # Skip symlinks
+                    if os.path.islink(src_file):
+                        continue
+                    
+                    # Copy regular files
+                    if os.path.isfile(src_file):
+                        shutil.copy2(src_file, dst_file)
         else:
-            # If it's a file, create a directory and put the file in it
-            os.makedirs(target_path)
-            shutil.copy2(dir_path, target_path)
+            # If it's a file, copy it to the repo root
+            shutil.copy2(dir_path, repo_path)
         
-        # Create tree for the target directory
-        tree = create_git_tree(repo, target_path)
+        # Create tree for the root directory
+        tree = create_git_tree(repo, repo_path)
         
         tree_id_str = tree.id.decode('ascii')
         return f"swh:1:dir:{tree_id_str}"
@@ -115,6 +131,10 @@ def create_git_tree(repo, dir_path):
     # Get all entries in the directory
     entries = []
     for item in os.listdir(dir_path):
+        # Skip .git directory (Git automatically excludes it)
+        if item == '.git':
+            continue
+            
         item_path = os.path.join(dir_path, item)
         
         if os.path.isfile(item_path):

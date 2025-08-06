@@ -24,7 +24,7 @@ implementations:
     name: "Git Implementation (dulwich)"
     runner: "runners/git_runner.py"
     command: "python -c 'import dulwich'"
-    enabled: false  # Disabled due to inconsistent hash results
+    enabled: true  # Re-enabled after fixing .git directory exclusion
     
   git-cmd:
     name: "Git Command Implementation"
