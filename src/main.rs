@@ -150,7 +150,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         } else {
             let display_path = if cli.filename && obj != "-" {
-                format!("\t{}", obj)
+                // For recursive output, don't add the original path since it's already included in each line
+                if cli.recursive {
+                    "".to_string()
+                } else {
+                    format!("\t{}", obj)
+                }
             } else {
                 "".to_string()
             };
