@@ -128,10 +128,8 @@ impl Directory {
             let name = entry.file_name();
             let name_bytes = name.to_string_lossy().as_bytes().to_vec();
 
-            // Skip hidden files
-            if name_bytes.starts_with(b".") {
-                continue;
-            }
+            // Note: We include hidden files (starting with .) to match Python implementation behavior
+            // The Python swh.model.cli includes all files in directory hashes
 
             let metadata = if follow_symlinks {
                 entry.metadata()?
