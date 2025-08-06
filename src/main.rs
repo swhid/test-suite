@@ -73,7 +73,8 @@ fn identify_object(
         } else if Path::new(obj).is_dir() {
             // Check if it's a Git repository first
             let git_path = Path::new(obj).join(".git");
-            if git_path.exists() && git_path.is_dir() {
+            if git_path.exists() && git_path.is_dir() && !recursive {
+                // Only auto-detect as snapshot if --recursive is NOT specified
                 "snapshot"
             } else {
                 "directory"
