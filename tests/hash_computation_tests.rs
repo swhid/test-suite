@@ -1,7 +1,7 @@
 use std::fs;
 use std::path::Path;
 use tempfile::TempDir;
-use swhid::{Content, Directory, SwhidComputer, traverse_directory_recursively, TreeObject, SwhidError, Swhid, ObjectType, EntryType, Permissions, DirectoryEntry};
+use swhid::{Content, Directory, SwhidComputer, traverse_directory_recursively, TreeObject, Swhid, ObjectType, EntryType, DirectoryEntry};
 
 /// Test helper to create a temporary directory with specific structure
 struct TestDir {
@@ -234,7 +234,7 @@ fn test_recursive_traversal_exclude_patterns() {
     test_dir.create_file("exclude_dir/file.txt", b"Excluded file");
 
     let exclude_patterns = vec!["exclude.txt".to_string(), "exclude_dir".to_string()];
-    let computer = SwhidComputer::new().with_exclude_patterns(&exclude_patterns);
+    let _computer = SwhidComputer::new().with_exclude_patterns(&exclude_patterns);
 
     let objects = traverse_directory_recursively(test_dir.path(), &exclude_patterns, true).unwrap();
 
@@ -747,7 +747,7 @@ fn test_exclusion_case_sensitivity() {
     test_dir.create_file("FILE.txt", b"different content");
     
     let exclude_patterns = vec!["file.txt".to_string()];
-    let computer = SwhidComputer::new().with_exclude_patterns(&exclude_patterns);
+    let _computer = SwhidComputer::new().with_exclude_patterns(&exclude_patterns);
     
     let objects = traverse_directory_recursively(test_dir.path(), &exclude_patterns, true).unwrap();
     
@@ -771,7 +771,7 @@ fn test_exclusion_case_insensitive_pattern() {
     test_dir.create_file("FILE.txt", b"different content");
     
     let exclude_patterns = vec!["FILE.txt".to_string()];
-    let computer = SwhidComputer::new().with_exclude_patterns(&exclude_patterns);
+    let _computer = SwhidComputer::new().with_exclude_patterns(&exclude_patterns);
     
     let objects = traverse_directory_recursively(test_dir.path(), &exclude_patterns, true).unwrap();
     
@@ -1032,7 +1032,7 @@ fn test_edge_case_special_characters() {
 #[cfg(test)]
 mod extended_swhid_tests {
     use super::*;
-    use swhid::{ExtendedSwhid, ExtendedObjectType, QualifiedSwhid};
+    use swhid::{ExtendedSwhid, ExtendedObjectType};
 
     #[test]
     fn test_extended_object_type_creation() {
@@ -1151,7 +1151,6 @@ mod extended_swhid_tests {
 
 #[cfg(test)]
 mod qualified_swhid_tests {
-    use super::*;
     use swhid::{QualifiedSwhid, Swhid, ObjectType};
 
     #[test]
