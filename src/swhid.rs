@@ -2,10 +2,14 @@ use std::fmt;
 use crate::error::SwhidError;
 
 /// Software Heritage object types (Core SWHID)
+/// According to the official SWHID specification v1.6
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ObjectType {
-    Content,
-    Directory,
+    Content,    // "cnt" - File contents
+    Directory,  // "dir" - Directory trees
+    Revision,   // "rev" - Git revisions
+    Release,    // "rel" - Git releases
+    Snapshot,   // "snp" - Git snapshots
 }
 
 impl ObjectType {
@@ -13,6 +17,9 @@ impl ObjectType {
         match self {
             ObjectType::Content => "cnt",
             ObjectType::Directory => "dir",
+            ObjectType::Revision => "rev",
+            ObjectType::Release => "rel",
+            ObjectType::Snapshot => "snp",
         }
     }
 
@@ -20,7 +27,10 @@ impl ObjectType {
         match s {
             "cnt" => Ok(ObjectType::Content),
             "dir" => Ok(ObjectType::Directory),
-            _ => Err(SwhidError::InvalidFormat(s.to_string())),
+            "rev" => Ok(ObjectType::Revision),
+            "rel" => Ok(ObjectType::Release),
+            "snp" => Ok(ObjectType::Snapshot),
+            _ => Err(SwhidError::InvalidObjectType(s.to_string())),
         }
     }
 }
@@ -32,6 +42,7 @@ impl fmt::Display for ObjectType {
 }
 
 /// Core Software Heritage Identifier
+/// Format: swh:1:<object_type>:<40_character_hex_hash>
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Swhid {
     object_type: ObjectType,
@@ -147,5 +158,39 @@ mod tests {
         
         // Invalid hash length
         assert!(Swhid::from_string("swh:1:cnt:00000000000000000000000000000000000000").is_err());
+    }
+
+    #[test]
+    fn test_all_object_types() {
+        // Test all core SWHID object types
+        let hash = [0u8; 20];
+        
+        let content_swhid = Swhid::new(ObjectType::Content, hash);
+        assert_eq!(content_swhid.to_string(), "swh:1:cnt:0000000000000000000000000000000000000000");
+        
+        let directory_swhid = Swhid::new(ObjectType::Directory, hash);
+        assert_eq!(directory_swhid.to_string(), "swh:1:dir:0000000000000000000000000000000000000000");
+        
+        let revision_swhid = Swhid::new(ObjectType::Revision, hash);
+        assert_eq!(revision_swhid.to_string(), "swh:1:rev:0000000000000000000000000000000000000000");
+        
+        let release_swhid = Swhid::new(ObjectType::Release, hash);
+        assert_eq!(release_swhid.to_string(), "swh:1:rel:0000000000000000000000000000000000000000");
+        
+        let snapshot_swhid = Swhid::new(ObjectType::Snapshot, hash);
+        assert_eq!(snapshot_swhid.to_string(), "swh:1:snp:0000000000000000000000000000000000000000");
+    }
+
+    #[test]
+    fn test_object_type_parsing() {
+        // Test parsing all valid object types
+        assert_eq!(ObjectType::from_str("cnt").unwrap(), ObjectType::Content);
+        assert_eq!(ObjectType::from_str("dir").unwrap(), ObjectType::Directory);
+        assert_eq!(ObjectType::from_str("rev").unwrap(), ObjectType::Revision);
+        assert_eq!(ObjectType::from_str("rel").unwrap(), ObjectType::Release);
+        assert_eq!(ObjectType::from_str("snp").unwrap(), ObjectType::Snapshot);
+        
+        // Test invalid object type
+        assert!(ObjectType::from_str("invalid").is_err());
     }
 } 
