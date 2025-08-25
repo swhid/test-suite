@@ -38,10 +38,11 @@ The library also supports **Qualified SWHIDs** with qualifiers according to the 
 - **`anchor`** - Reference node (dir, rev, rel, or snp) for path resolution
 - **`path`** - Absolute file path relative to the anchor
 - **`lines`** - Line range (start-end or single line) within content
+- **`bytes`** - Byte range (start-end or single byte) within content
 
 **Format**: `swh:1:<object_type>:<hash>[;qualifier=value]*`
 
-**Example**: `swh:1:cnt:abc123...;origin=https://github.com/user/repo;path=/src/main.rs;lines=10-20`
+**Example**: `swh:1:cnt:abc123...;origin=https://github.com/user/repo;path=/src/main.rs;lines=10-20;bytes=5-10`
 
 ## Features
 
@@ -120,18 +121,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let qualified = QualifiedSwhid::new(core_swhid)
         .with_origin("https://github.com/user/repo".to_string())
         .with_path(b"/src/main.rs".to_vec())
-        .with_lines(10, Some(20));
+        .with_lines(10, Some(20))
+        .with_bytes(5, Some(10));
     
     println!("Qualified SWHID: {}", qualified);
     
     // Parse a qualified SWHID from string
     let parsed = QualifiedSwhid::from_string(
-        "swh:1:cnt:0000000000000000000000000000000000000000;origin=https://github.com/user/repo;path=/src/main.rs;lines=10-20"
+        "swh:1:cnt:0000000000000000000000000000000000000000;origin=https://github.com/user/repo;path=/src/main.rs;lines=10-20;bytes=5-10"
     )?;
     
     println!("Origin: {:?}", parsed.origin());
     println!("Path: {:?}", parsed.path().map(|p| String::from_utf8_lossy(p)));
     println!("Lines: {:?}", parsed.lines());
+    println!("Bytes: {:?}", parsed.bytes());
     
     Ok(())
 }
@@ -224,12 +227,13 @@ The full implementation will depend on this core crate and add the additional fe
 This implementation follows the **official SWHID specification v1.6** exactly:
 
 - ✅ **Core Object Types**: All 5 types (cnt, dir, rev, rel, snp)
-- ✅ **Qualified SWHIDs**: Full qualifier support (origin, visit, anchor, path, lines)
+- ✅ **Qualified SWHIDs**: Full qualifier support (origin, visit, anchor, path, lines, bytes)
 - ✅ **Format**: `swh:1:<object_type>:<40_character_hex_hash>[;qualifier=value]*`
 - ✅ **Hash Algorithm**: SHA1 (Git-compatible)
 - ✅ **Namespace**: Always "swh"
 - ✅ **Version**: Always "1"
 - ✅ **Qualifier Validation**: Proper type checking for visit/anchor qualifiers
+- ✅ **Fragment Qualifiers**: Both lines and bytes qualifiers supported
 
 **Note**: Extended types like `ori` (origin) and `emd` (metadata) are **NOT part of the core specification** and are not included in this reference implementation.
 

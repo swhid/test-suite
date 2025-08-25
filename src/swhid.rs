@@ -124,6 +124,7 @@ pub struct QualifiedSwhid {
     anchor: Option<Swhid>,
     path: Option<Vec<u8>>,
     lines: Option<(u32, Option<u32>)>,
+    bytes: Option<(u32, Option<u32>)>,
 }
 
 impl QualifiedSwhid {
@@ -136,6 +137,7 @@ impl QualifiedSwhid {
             anchor: None,
             path: None,
             lines: None,
+            bytes: None,
         }
     }
 
@@ -197,6 +199,12 @@ impl QualifiedSwhid {
         self
     }
 
+    /// Set the bytes qualifier
+    pub fn with_bytes(mut self, start: u32, end: Option<u32>) -> Self {
+        self.bytes = Some((start, end));
+        self
+    }
+
     /// Get the origin qualifier
     pub fn origin(&self) -> Option<&str> {
         self.origin.as_deref()
@@ -220,6 +228,11 @@ impl QualifiedSwhid {
     /// Get the lines qualifier
     pub fn lines(&self) -> Option<(u32, Option<u32>)> {
         self.lines
+    }
+
+    /// Get the bytes qualifier
+    pub fn bytes(&self) -> Option<(u32, Option<u32>)> {
+        self.bytes
     }
 
     /// Parse QualifiedSWHID from string
@@ -286,6 +299,30 @@ impl QualifiedSwhid {
                     
                     qualified.lines = Some((start, end));
                 }
+                "bytes" => {
+                    let bytes_parts: Vec<&str> = value.split('-').collect();
+                    if bytes_parts.len() > 2 {
+                        return Err(SwhidError::InvalidFormat(format!(
+                            "Invalid bytes format: {}", value
+                        )));
+                    }
+                    
+                    let start = bytes_parts[0].parse::<u32>()
+                        .map_err(|_| SwhidError::InvalidFormat(format!(
+                            "Invalid start byte: {}", bytes_parts[0]
+                        )))?;
+                    
+                    let end = if bytes_parts.len() == 2 {
+                        Some(bytes_parts[1].parse::<u32>()
+                            .map_err(|_| SwhidError::InvalidFormat(format!(
+                                "Invalid end byte: {}", bytes_parts[1]
+                            )))?)
+                    } else {
+                        None
+                    };
+                    
+                    qualified.bytes = Some((start, end));
+                }
                 _ => {
                     return Err(SwhidError::UnknownQualifier(key.to_string()));
                 }
@@ -322,6 +359,13 @@ impl fmt::Display for QualifiedSwhid {
             match end {
                 Some(end) => write!(f, ";lines={}-{}", start, end)?,
                 None => write!(f, ";lines={}", start)?,
+            }
+        }
+
+        if let Some((start, end)) = self.bytes {
+            match end {
+                Some(end) => write!(f, ";bytes={}-{}", start, end)?,
+                None => write!(f, ";bytes={}", start)?,
             }
         }
 
@@ -428,6 +472,7 @@ mod tests {
         assert_eq!(qualified.anchor(), None);
         assert_eq!(qualified.path(), None);
         assert_eq!(qualified.lines(), None);
+        assert_eq!(qualified.bytes(), None);
     }
 
     #[test]
@@ -510,25 +555,42 @@ mod tests {
     }
 
     #[test]
+    fn test_qualified_swhid_with_bytes() {
+        let core = Swhid::new(ObjectType::Content, [0u8; 20]);
+        
+        // Single byte
+        let qualified = QualifiedSwhid::new(core.clone())
+            .with_bytes(10, None);
+        assert_eq!(qualified.bytes(), Some((10, None)));
+        
+        // Byte range
+        let qualified = QualifiedSwhid::new(core)
+            .with_bytes(10, Some(20));
+        assert_eq!(qualified.bytes(), Some((10, Some(20))));
+    }
+
+    #[test]
     fn test_qualified_swhid_display() {
         let core = Swhid::new(ObjectType::Content, [0u8; 20]);
         let qualified = QualifiedSwhid::new(core)
             .with_origin("https://github.com/user/repo".to_string())
             .with_path(b"/src/main.rs".to_vec())
-            .with_lines(10, Some(20));
+            .with_lines(10, Some(20))
+            .with_bytes(5, Some(10));
         
-        let expected = "swh:1:cnt:0000000000000000000000000000000000000000;origin=https://github.com/user/repo;path=/src/main.rs;lines=10-20";
+        let expected = "swh:1:cnt:0000000000000000000000000000000000000000;origin=https://github.com/user/repo;path=/src/main.rs;lines=10-20;bytes=5-10";
         assert_eq!(qualified.to_string(), expected);
     }
 
     #[test]
     fn test_qualified_swhid_from_string() {
-        let s = "swh:1:cnt:0000000000000000000000000000000000000000;origin=https://github.com/user/repo;path=/src/main.rs;lines=10-20";
+        let s = "swh:1:cnt:0000000000000000000000000000000000000000;origin=https://github.com/user/repo;path=/src/main.rs;lines=10-20;bytes=5-10";
         let qualified = QualifiedSwhid::from_string(s).unwrap();
         
         assert_eq!(qualified.origin(), Some("https://github.com/user/repo"));
         assert_eq!(qualified.path(), Some(b"/src/main.rs".as_slice()));
         assert_eq!(qualified.lines(), Some((10, Some(20))));
+        assert_eq!(qualified.bytes(), Some((5, Some(10))));
     }
 
     #[test]
@@ -538,6 +600,9 @@ mod tests {
         
         // Invalid lines format
         assert!(QualifiedSwhid::from_string("swh:1:cnt:0000000000000000000000000000000000000000;lines=invalid").is_err());
+        
+        // Invalid bytes format
+        assert!(QualifiedSwhid::from_string("swh:1:cnt:0000000000000000000000000000000000000000;bytes=invalid").is_err());
         
         // Unknown qualifier
         assert!(QualifiedSwhid::from_string("swh:1:cnt:0000000000000000000000000000000000000000;unknown=value").is_err());
