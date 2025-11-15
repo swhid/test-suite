@@ -184,6 +184,71 @@ payloads:
     expected_swhid: swh:1:snp:1109043ec17eeb3bf7d657689ab60336c901fde9
     name: signed_tag
     path: payloads/git/signed_tag/
+  git-repository:
+  - description: Simple Git repo with multiple commits (tests snapshot, revision)
+    name: simple_revisions
+    path: payloads/git-repository/simple_revisions/
+  - description: Git repo with merge commits - tests snapshot and revision from merge
+      commit
+    name: merge_commits
+    path: payloads/git-repository/merge_commits/
+  - description: Git repo with both annotated and lightweight tags - tests snapshot,
+      release
+    name: tag_types
+    path: payloads/git-repository/tag_types/
+  - description: Git repo with multiple branches (alpha, beta, gamma, zeta, main)
+      - tests snapshot branch ordering
+    name: branch_ordering
+    path: payloads/git-repository/branch_ordering/
+  - description: Git repo with complex merge history - tests snapshot and revision
+    name: complex_merges
+    path: payloads/git-repository/complex_merges/
+  - description: Comprehensive Git repo with multiple branches and annotated tags
+      - auto-discovers all branches and tags
+    name: comprehensive
+    path: payloads/git-repository/comprehensive/
+    discover_branches: true
+    discover_tags: true
+  revision:
+  - description: Revision from simple Git repo (HEAD commit)
+    name: simple_revision
+    path: payloads/git/merge_commits/
+  - description: Revision from merge commit (commit with 2+ parents)
+    name: merge_revision
+    path: payloads/git/merge_commits/
+    commit: 395d056
+  - description: Revision from initial commit
+    name: initial_revision
+    path: payloads/git/merge_commits/
+    commit: d8693ad
+  - description: Revision from simple_revisions repo (HEAD)
+    name: simple_revisions_head
+    path: payloads/git-repository/simple_revisions/
+  - description: Revision from simple_revisions repo (first commit)
+    name: simple_revisions_first
+    path: payloads/git-repository/simple_revisions/
+    commit: b7fdd35
+  - description: Revision from merge_commits repo (merge commit)
+    name: merge_commits_head
+    path: payloads/git-repository/merge_commits/
+    commit: b644fc7
+  release:
+  - description: Release from annotated tag v1.0
+    name: annotated_release_v1
+    path: payloads/git/with_tags/
+    tag: v1.0
+  - description: Release from annotated tag v2.0
+    name: annotated_release_v2
+    path: payloads/git/with_tags/
+    tag: v2.0
+  - description: Release from lightweight tag (if supported)
+    name: lightweight_release
+    path: payloads/git/lightweight_vs_annotated/
+    tag: v2.0
+  - description: Release from tag_types repo (annotated tag v1.0)
+    name: tag_types_annotated
+    path: payloads/git-repository/tag_types/
+    tag: v1.0
   negative:
   - description: Test file that doesn't exist (triggers IO_ERROR)
     expected_error: IO_ERROR
