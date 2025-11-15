@@ -26,7 +26,11 @@ swhid-harness --category content,directory,git
 ### Validate Results
 
 ```bash
+# Validate results
 python -m harness.models results.json
+
+# Generate HTML table with color-coded results
+python scripts/view_results.py results.json
 ```
 
 ## Project Structure

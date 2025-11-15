@@ -262,6 +262,26 @@ payloads:
     path: payloads/git-repository/signed_revisions.tar.gz
     commit: signed-feature
     expected_swhid: swh:1:rev:8a1241cc9d81178d7c1c29201354b2cb309601fe
+  - description: Revision from comprehensive repo (feature-a branch)
+    name: comprehensive_branch_feature-a
+    path: payloads/git-repository/comprehensive.tar.gz
+    commit: feature-a
+    expected_swhid: swh:1:rev:870dcb724e95453ab9dd2f4a58f98aeb0dcb7764
+  - description: Revision from comprehensive repo (feature-b branch)
+    name: comprehensive_branch_feature-b
+    path: payloads/git-repository/comprehensive.tar.gz
+    commit: feature-b
+    expected_swhid: swh:1:rev:229740cdc7665b5718e34e04a59fd9e981f2c149
+  - description: Revision from comprehensive repo (hotfix branch)
+    name: comprehensive_branch_hotfix
+    path: payloads/git-repository/comprehensive.tar.gz
+    commit: hotfix
+    expected_swhid: swh:1:rev:bfe454d11532e851d36ac5c2c014f12a19c9f720
+  - description: Revision from comprehensive repo (main branch)
+    name: comprehensive_branch_main
+    path: payloads/git-repository/comprehensive.tar.gz
+    commit: main
+    expected_swhid: swh:1:rev:997cc01b55bd38cbcc49f113c9f796e528559adf
   release:
   - description: Release from annotated tag v1.0
     name: annotated_release_v1
@@ -297,6 +317,31 @@ payloads:
     path: payloads/git-repository/tag_types.tar.gz
     tag: v1.0
     expected_swhid: swh:1:rel:302822701a46791d97f5e372255b7db078a342e2
+  - description: Release from comprehensive repo (v1.0.0 tag)
+    name: comprehensive_tag_v1.0.0
+    path: payloads/git-repository/comprehensive.tar.gz
+    tag: v1.0.0
+    expected_swhid: swh:1:rel:5286f13487f495993f96ae05b33d10f5f93b82f4
+  - description: Release from comprehensive repo (v1.0.1 tag)
+    name: comprehensive_tag_v1.0.1
+    path: payloads/git-repository/comprehensive.tar.gz
+    tag: v1.0.1
+    expected_swhid: swh:1:rel:bce2af7aab2b64d3198976a83cefffcd6f5b8f54
+  - description: Release from comprehensive repo (v1.1.0 tag)
+    name: comprehensive_tag_v1.1.0
+    path: payloads/git-repository/comprehensive.tar.gz
+    tag: v1.1.0
+    expected_swhid: swh:1:rel:00f5b371d166cff902716f88c59e97eb21d18a7a
+  - description: Release from comprehensive repo (v2.0.0 tag)
+    name: comprehensive_tag_v2.0.0
+    path: payloads/git-repository/comprehensive.tar.gz
+    tag: v2.0.0
+    expected_swhid: swh:1:rel:eb40be8808a4c33f3d3daab634344b673996a49f
+  - description: Release from comprehensive repo (v2.1.0 tag)
+    name: comprehensive_tag_v2.1.0
+    path: payloads/git-repository/comprehensive.tar.gz
+    tag: v2.1.0
+    expected_swhid: swh:1:rel:edaf91f706742fcb19591f59b5397b0a7a09ac39
   negative:
   - description: Test file that doesn't exist (triggers IO_ERROR)
     expected_error: IO_ERROR
