@@ -60,6 +60,7 @@ jobs:
           retention-days: 30
       
       - name: Generate test summary
+        shell: bash
         run: |
           echo "## Test Results Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
