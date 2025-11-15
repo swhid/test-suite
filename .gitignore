@@ -81,3 +81,16 @@ htmlcov/
 =*
 *.zip
 swhid-harness-review-v2.tar.gz
+
+# Ignore .git directories in git-repository test payloads
+payloads/git-repository/signed_releases/.git/
+payloads/git-repository/signed_revisions/.git/
+payloads/git-repository/branch_ordering/.git/
+payloads/git-repository/merge_commits/.git/
+payloads/git-repository/comprehensive/.git/
+payloads/git-repository/tag_types/.git/
+payloads/git-repository/simple_revisions/.git/
+payloads/git-repository/complex_merges/.git/
+
+# Ignore .git directories in git-repository test payloads
+payloads/git-repository/*/.git/
