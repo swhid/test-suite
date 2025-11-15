@@ -7,6 +7,7 @@ import tempfile
 import os
 import yaml
 from pathlib import Path
+from typing import Optional
 from unittest.mock import Mock, patch, MagicMock
 
 from harness.harness import SwhidHarness
@@ -44,7 +45,8 @@ class MockImplementation(SwhidImplementation):
             supports_percent_encoding=True
         )
     
-    def compute_swhid(self, payload_path: str, obj_type: str = None) -> str:
+    def compute_swhid(self, payload_path: str, obj_type: str = None, 
+                     commit: Optional[str] = None, tag: Optional[str] = None) -> str:
         if not self._available:
             raise RuntimeError("Implementation not available")
         if self._error:

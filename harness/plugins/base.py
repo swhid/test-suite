@@ -5,7 +5,7 @@ Base classes and interfaces for SWHID implementations.
 from abc import ABC, abstractmethod
 from typing import Dict, Any, Optional, List, Union
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 import logging
 
@@ -97,7 +97,7 @@ class SwhidTestResult:
     
     def __post_init__(self):
         if self.timestamp is None:
-            self.timestamp = datetime.utcnow()
+            self.timestamp = datetime.now(timezone.utc)
     
     def get_error_dict(self) -> Optional[Dict[str, Any]]:
         """Get error as dictionary for JSON serialization."""
@@ -119,7 +119,7 @@ class ComparisonResult:
     
     def __post_init__(self):
         if self.timestamp is None:
-            self.timestamp = datetime.utcnow()
+            self.timestamp = datetime.now(timezone.utc)
     
 
 @dataclass
@@ -137,7 +137,7 @@ class BenchmarkResult:
     
     def __post_init__(self):
         if self.timestamp is None:
-            self.timestamp = datetime.utcnow()
+            self.timestamp = datetime.now(timezone.utc)
 
 @dataclass
 class ImplementationCapabilities:
