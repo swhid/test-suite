@@ -40,6 +40,21 @@ class Implementation(SwhidImplementation):
             )
             if result.returncode != 0:
                 return False
+            
+            # Check if swhid-rs project exists and is accessible
+            project_root = self._get_project_root()
+            if not project_root:
+                return False
+            
+            # Verify the project can be accessed (Cargo.toml exists and is readable)
+            cargo_toml = Path(project_root) / "Cargo.toml"
+            if not cargo_toml.exists():
+                return False
+            
+            # Optionally: Check if project can be built (but this is slow, so skip for now)
+            # We'll discover build issues when actually trying to use it
+            # For now, just verify the project structure exists
+            
             return True
         except (subprocess.TimeoutExpired, FileNotFoundError, Exception):
             return False
