@@ -33,7 +33,7 @@ swhid-harness --impl rust --category "$CATEGORY" --dashboard-output "$OUTPUT"
 # Validate results
 echo ""
 echo "Validating results..."
-python -m harness.models "$OUTPUT"
+python3 -m harness.models "$OUTPUT"
 
 # Show summary
 echo ""
@@ -70,4 +70,4 @@ echo ""
 echo "Results saved to: $OUTPUT"
 echo ""
 echo "To view detailed results:"
-echo "  cat $OUTPUT | python -m json.tool | less"
+echo "  cat $OUTPUT | python3 -m json.tool | less"

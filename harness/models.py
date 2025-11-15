@@ -221,7 +221,7 @@ if __name__ == "__main__":
     import json
     
     if len(sys.argv) != 2:
-        print("Usage: python -m harness.models <results.json>")
+        print("Usage: python3 -m harness.models <results.json>")
         sys.exit(1)
     
     try:

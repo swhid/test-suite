@@ -28,10 +28,10 @@ swhid-harness --impl python,rust --category content --dashboard-output results.j
 
 ```bash
 # Validate results
-python -m harness.models results.json
+python3 -m harness.models results.json
 
 # View JSON
-cat results.json | python -m json.tool | less
+cat results.json | python3 -m json.tool | less
 ```
 
 ## Adding a New Implementation
@@ -99,7 +99,7 @@ swhid-harness --list-impls
 
 # Test it
 swhid-harness --impl my-impl --category content --dashboard-output test.json
-python -m harness.models test.json
+python3 -m harness.models test.json
 ```
 
 ### Implementation Requirements
@@ -200,10 +200,10 @@ swhid-harness --help  # Full help
 
 ```bash
 # Validate schema
-python -m harness.models results.json
+python3 -m harness.models results.json
 
 # Pretty print JSON
-cat results.json | python -m json.tool | less
+cat results.json | python3 -m json.tool | less
 
 # Extract pass rate
 cat results.json | jq '.aggregates.overall.pass_rate'

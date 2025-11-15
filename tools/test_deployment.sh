@@ -34,12 +34,12 @@ print_status $? "CLI installed and working"
 
 echo ""
 echo "2. Testing Schema Validation..."
-python -c "from harness.models import HarnessResults; print('Schema models loaded')" > /dev/null
+python3 -c "from harness.models import HarnessResults; print('Schema models loaded')" > /dev/null
 print_status $? "Pydantic models loaded"
 
 echo ""
 echo "3. Testing Implementation Loading..."
-python -c "
+python3 -c "
 from harness.harness import SwhidHarness
 h = SwhidHarness()
 print(f'Loaded {len(h.implementations)} implementations: {list(h.implementations.keys())}')
@@ -53,12 +53,12 @@ print_status $? "Content tests completed"
 
 echo ""
 echo "5. Validating Results Schema..."
-python -m harness.models test_results.json > /dev/null
+python3 -m harness.models test_results.json > /dev/null
 print_status $? "Results schema validation passed"
 
 echo ""
 echo "6. Testing Dashboard Generation..."
-python tools/merge_results.py test_results.json --site site > /dev/null
+python3 tools/merge_results.py test_results.json --site site > /dev/null
 print_status $? "Dashboard files generated"
 
 echo ""
@@ -72,7 +72,7 @@ fi
 echo ""
 echo "8. Testing Local Server..."
 cd site
-python -m http.server 8080 > /dev/null 2>&1 &
+python3 -m http.server 8080 > /dev/null 2>&1 &
 SERVER_PID=$!
 sleep 2
 if kill -0 $SERVER_PID 2>/dev/null; then
