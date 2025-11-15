@@ -209,6 +209,15 @@ payloads:
     path: payloads/git-repository/comprehensive/
     discover_branches: true
     discover_tags: true
+  - description: Git repo with signed commits (GPG-signed revisions) - tests revision
+      SWHID computation for signed commits - auto-discovers all branches
+    name: signed_revisions
+    path: payloads/git-repository/signed_revisions/
+    discover_branches: true
+  - description: Git repo with signed tags (GPG-signed releases) - tests release SWHID
+      computation for signed tags
+    name: signed_releases
+    path: payloads/git-repository/signed_releases/
   revision:
   - description: Revision from simple Git repo (HEAD commit)
     name: simple_revision
@@ -232,6 +241,13 @@ payloads:
     name: merge_commits_head
     path: payloads/git-repository/merge_commits/
     commit: b644fc7
+  - description: Revision from signed_revisions repo (signed commit on main branch)
+    name: signed_revision_main
+    path: payloads/git-repository/signed_revisions/
+  - description: Revision from signed_revisions repo (signed commit on feature branch)
+    name: signed_revision_feature
+    path: payloads/git-repository/signed_revisions/
+    commit: signed-feature
   release:
   - description: Release from annotated tag v1.0
     name: annotated_release_v1
@@ -245,6 +261,18 @@ payloads:
     name: lightweight_release
     path: payloads/git/lightweight_vs_annotated/
     tag: v2.0
+  - description: Release from signed_releases repo (signed tag v1.0.0)
+    name: signed_release_v1
+    path: payloads/git-repository/signed_releases/
+    tag: v1.0.0
+  - description: Release from signed_releases repo (signed tag v2.0.0)
+    name: signed_release_v2
+    path: payloads/git-repository/signed_releases/
+    tag: v2.0.0
+  - description: Release from signed_releases repo (signed tag v2.1.0)
+    name: signed_release_v2_1
+    path: payloads/git-repository/signed_releases/
+    tag: v2.1.0
   - description: Release from tag_types repo (annotated tag v1.0)
     name: tag_types_annotated
     path: payloads/git-repository/tag_types/
