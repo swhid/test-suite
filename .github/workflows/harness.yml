@@ -145,11 +145,103 @@ jobs:
           swhid-harness --impl git,pygit2 --category content --output-format canonical --dashboard-output results.json || true
           echo "Harness test with built-in implementations completed"
       
+      - name: Check for upstream changes
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+        id: check-changes
+        run: |
+          echo "## 🔍 Checking for Upstream Changes" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          CHANGES_DETECTED=false
+          
+          # Check changes in test-suite repository
+          echo "### Test Suite Repository" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ github.event_name }}" == "schedule" ]; then
+            # For scheduled runs, compare with previous commit (24 hours ago roughly)
+            LAST_COMMIT=$(git log --since="25 hours ago" --until="1 hour ago" --oneline | head -1 || echo "")
+            if [ -n "$LAST_COMMIT" ]; then
+              echo "✅ Changes detected in test-suite repository" >> $GITHUB_STEP_SUMMARY
+              echo "Recent commits:" >> $GITHUB_STEP_SUMMARY
+              git log --since="25 hours ago" --until="1 hour ago" --oneline | head -5 >> $GITHUB_STEP_SUMMARY || true
+              CHANGES_DETECTED=true
+            else
+              echo "ℹ️ No commits in test-suite repository since last run" >> $GITHUB_STEP_SUMMARY
+            fi
+          else
+            # For manual runs, show current commit
+            CURRENT_COMMIT=$(git rev-parse HEAD)
+            echo "Current commit: \`${CURRENT_COMMIT:0:7}\`" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Check changes in swhid-rs repository
+          echo "### swhid-rs Repository" >> $GITHUB_STEP_SUMMARY
+          if [ -d /tmp/swhid-rs ] && [ -f /tmp/swhid-rs/.git/config ]; then
+            cd /tmp/swhid-rs
+            CURRENT_SHA=$(git rev-parse HEAD 2>/dev/null || echo "")
+            CURRENT_COMMIT_MSG=$(git log -1 --pretty=format:"%s" 2>/dev/null || echo "")
+            if [ -n "$CURRENT_SHA" ]; then
+              echo "Current commit: \`${CURRENT_SHA:0:7}\` - $CURRENT_COMMIT_MSG" >> $GITHUB_STEP_SUMMARY
+              
+              # Try to fetch latest and compare
+              git fetch origin 2>/dev/null || true
+              REMOTE_SHA=$(git rev-parse origin/HEAD 2>/dev/null || echo "")
+              if [ -n "$REMOTE_SHA" ] && [ "$CURRENT_SHA" != "$REMOTE_SHA" ]; then
+                echo "⚠️ **New commits available in swhid-rs**" >> $GITHUB_STEP_SUMMARY
+                echo "Recent commits:" >> $GITHUB_STEP_SUMMARY
+                git log --oneline ${CURRENT_SHA}..${REMOTE_SHA} | head -5 >> $GITHUB_STEP_SUMMARY || true
+                CHANGES_DETECTED=true
+              else
+                echo "✅ swhid-rs is up to date" >> $GITHUB_STEP_SUMMARY
+              fi
+            fi
+            cd - > /dev/null
+          else
+            echo "ℹ️ swhid-rs repository not available" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Check for updates in swh Python packages
+          echo "### Software Heritage Python Packages" >> $GITHUB_STEP_SUMMARY
+          for package in swh.model swh.core; do
+            INSTALLED_VERSION=$(pip show $package 2>/dev/null | grep "^Version:" | awk '{print $2}' || echo "not installed")
+            if [ "$INSTALLED_VERSION" != "not installed" ]; then
+              # Check PyPI for latest version
+              LATEST_VERSION=$(pip index versions $package 2>/dev/null | grep "LATEST:" | awk '{print $2}' || echo "")
+              if [ -n "$LATEST_VERSION" ] && [ "$INSTALLED_VERSION" != "$LATEST_VERSION" ]; then
+                echo "⚠️ **$package**: Installed: \`$INSTALLED_VERSION\`, Latest: \`$LATEST_VERSION\`" >> $GITHUB_STEP_SUMMARY
+                CHANGES_DETECTED=true
+              else
+                echo "✅ **$package**: \`$INSTALLED_VERSION\` (latest)" >> $GITHUB_STEP_SUMMARY
+              fi
+            else
+              echo "ℹ️ **$package**: Not installed" >> $GITHUB_STEP_SUMMARY
+            fi
+          done
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Summary
+          if [ "$CHANGES_DETECTED" = "true" ]; then
+            echo "### 📊 Summary" >> $GITHUB_STEP_SUMMARY
+            echo "⚠️ **Changes detected upstream** - Full test suite will run" >> $GITHUB_STEP_SUMMARY
+            echo "changes_detected=true" >> $GITHUB_ENV
+          else
+            echo "### 📊 Summary" >> $GITHUB_STEP_SUMMARY
+            echo "✅ **No upstream changes detected** - Running full test suite anyway" >> $GITHUB_STEP_SUMMARY
+            echo "changes_detected=false" >> $GITHUB_ENV
+          fi
+        continue-on-error: true
+      
       - name: Run full test suite (all categories and implementations)
         if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
         run: |
           # Scheduled and manual runs test all categories with all available implementations
           # The harness will automatically skip implementations that are not available
+          if [ "${{ env.changes_detected }}" = "true" ]; then
+            echo "Running full test suite due to upstream changes..."
+          else
+            echo "Running full test suite (no upstream changes detected, but running anyway)..."
+          fi
           swhid-harness --output-format canonical --dashboard-output results.json || true
           echo "Full test suite completed (some implementations may be skipped)"
       
