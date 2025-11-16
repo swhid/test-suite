@@ -61,13 +61,15 @@ jobs:
         continue-on-error: true
       
       - name: Setup SSH for private repository access
-        if: env.SWHID_RS_REPO == '' || startsWith(env.SWHID_RS_REPO, 'git@')
         run: |
           mkdir -p ~/.ssh
           if [ -n "${{ secrets.SWHID_RS_SSH_KEY }}" ]; then
             echo "${{ secrets.SWHID_RS_SSH_KEY }}" > ~/.ssh/id_rsa
             chmod 600 ~/.ssh/id_rsa
             ssh-keyscan github.com >> ~/.ssh/known_hosts 2>/dev/null
+            echo "SSH key configured for private repository access"
+          else
+            echo "No SSH key provided - will try HTTPS with token if available"
           fi
         continue-on-error: true
       
