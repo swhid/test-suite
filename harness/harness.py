@@ -1067,6 +1067,106 @@ class SwhidHarness:
                     print(f"  {impl_id}: {len(unique_skipped)} test(s)")
                     for test_id in unique_skipped:
                         print(f"    - {test_id}")
+        
+        # Print detailed disagreement summary
+        disagreement_tests = []
+        for test_case in canonical_results.tests:
+            has_expected = test_case.expected.swhid is not None
+            expected_swhid = test_case.expected.swhid
+            
+            # Get all results for this test
+            results = test_case.results
+            non_skipped_results = [r for r in results if r.status != "SKIPPED"]
+            
+            # Skip if all implementations agree or all skipped
+            if len(non_skipped_results) == 0:
+                continue
+            
+            # Group by SWHID and status
+            swhid_groups = {}  # swhid -> list of (impl_id, status)
+            failed_impls = []  # list of (impl_id, error_message)
+            
+            for result in non_skipped_results:
+                if result.status == "FAIL":
+                    error_msg = result.error.message if result.error else "Unknown error"
+                    failed_impls.append((result.implementation, error_msg))
+                elif result.status == "PASS" and result.swhid:
+                    swhid = result.swhid
+                    if swhid not in swhid_groups:
+                        swhid_groups[swhid] = []
+                    swhid_groups[swhid].append(result.implementation)
+            
+            # Check if there's a disagreement
+            # Disagreement exists if:
+            # - Multiple different SWHIDs
+            # - Or one SWHID but doesn't match expected (when expected exists)
+            # - Or there are failures
+            has_disagreement = False
+            if len(swhid_groups) > 1:
+                has_disagreement = True
+            elif len(swhid_groups) == 1 and has_expected:
+                computed_swhid = list(swhid_groups.keys())[0]
+                if computed_swhid != expected_swhid:
+                    has_disagreement = True
+            elif failed_impls:
+                has_disagreement = True
+            
+            if has_disagreement:
+                disagreement_tests.append({
+                    'test_id': test_case.id,
+                    'category': test_case.category,
+                    'has_expected': has_expected,
+                    'expected_swhid': expected_swhid,
+                    'swhid_groups': swhid_groups,
+                    'failed_impls': failed_impls
+                })
+        
+        # Print disagreement details
+        if disagreement_tests:
+            print(f"\nDisagreements summary ({len(disagreement_tests)} test(s) with disagreements):")
+            for disc in disagreement_tests:
+                print(f"\n  ✗ {disc['test_id']} ({disc['category']})")
+                
+                # Show expected result status
+                if disc['has_expected']:
+                    print(f"    Expected: {disc['expected_swhid']}")
+                else:
+                    print(f"    Expected: (none)")
+                
+                # Show SWHID groups
+                if disc['swhid_groups']:
+                    if len(disc['swhid_groups']) > 1:
+                        print(f"    Found {len(disc['swhid_groups'])} different SWHID groups:")
+                        for i, (swhid, impls) in enumerate(sorted(disc['swhid_groups'].items()), 1):
+                            match_indicator = ""
+                            if disc['has_expected'] and swhid == disc['expected_swhid']:
+                                match_indicator = " ✓ (matches expected)"
+                            elif disc['has_expected']:
+                                match_indicator = " ✗ (differs from expected)"
+                            print(f"      Group {i}: {swhid}{match_indicator}")
+                            print(f"        Implementations: {', '.join(sorted(impls))}")
+                    else:
+                        # Single group
+                        swhid = list(disc['swhid_groups'].keys())[0]
+                        impls = list(disc['swhid_groups'].values())[0]
+                        match_indicator = ""
+                        if disc['has_expected'] and swhid == disc['expected_swhid']:
+                            match_indicator = " ✓ (matches expected)"
+                        elif disc['has_expected']:
+                            match_indicator = " ✗ (differs from expected)"
+                        print(f"    Computed SWHID: {swhid}{match_indicator}")
+                        print(f"      Implementations: {', '.join(sorted(impls))}")
+                
+                # Show failed implementations
+                if disc['failed_impls']:
+                    print(f"    Failed implementations ({len(disc['failed_impls'])}):")
+                    for impl_id, error_msg in disc['failed_impls']:
+                        # Truncate long error messages
+                        if len(error_msg) > 80:
+                            error_msg = error_msg[:77] + "..."
+                        print(f"      {impl_id}: {error_msg}")
+        else:
+            print("\nNo disagreements found - all implementations agree on all tests.")
     
     def _get_implementation_git_sha(self, impl_name: str, impl_info: ImplementationInfo) -> Optional[str]:
         """Try to get git SHA for an implementation."""
