@@ -83,6 +83,28 @@ Edit `config.yaml` to:
 - Adjust test settings (timeout, parallelism)
 - Configure output options
 
+### Autodiscovery expectations
+
+For Git archives that enable `discover_branches` and/or `discover_tags`, provide
+expected SWHIDs per discovered reference using the `expected` section:
+
+```
+  - name: comprehensive
+    path: payloads/git-repository/comprehensive.tar.gz
+    discover_branches: true
+    discover_tags: true
+    expected:
+      branches:
+        main: swh:1:rev:...
+        feature-a: swh:1:rev:...
+      tags:
+        v1.0.0: swh:1:rel:...
+```
+
+During a run the harness looks up these values and compares the consensus SWHID
+from all successful implementations with the configured expectation. Missing
+entries are reported so new branches/tags can be documented explicitly.
+
 ## Output Format
 
 Results are saved in canonical JSON format (v1.0.0) with:

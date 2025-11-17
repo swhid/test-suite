@@ -228,9 +228,13 @@ class SwhidHarness:
             )
     
     def _discover_git_tests(self, repo_path: str, base_name: str, 
-                            discover_branches: bool, discover_tags: bool) -> List[ComparisonResult]:
+                            discover_branches: bool, discover_tags: bool,
+                            expected_config: Optional[Dict[str, Any]] = None) -> List[ComparisonResult]:
         """Discover and test all branches and/or annotated tags in a Git repository."""
         all_results = []
+        expected_config = expected_config or {}
+        expected_branches = expected_config.get("branches", {}) or {}
+        expected_tags = expected_config.get("tags", {}) or {}
         
         # Extract tarball if needed
         actual_repo_path = self._extract_tarball_if_needed(repo_path)
@@ -284,7 +288,8 @@ class SwhidHarness:
                                 logger.error(f"Error running test for {impl.get_info().name}: {e}")
                     
                     # Compare results (no expected SWHID for discovered tests)
-                    comparison = self._compare_results(test_name, actual_repo_path, results, expected_swhid=None)
+                    expected_swhid = expected_branches.get(branch)
+                    comparison = self._compare_results(test_name, actual_repo_path, results, expected_swhid=expected_swhid)
                     all_results.append(comparison)
                     
                     # Log results similar to regular tests
@@ -401,7 +406,8 @@ class SwhidHarness:
                                 logger.error(f"Error running test for {impl.get_info().name}: {e}")
                     
                     # Compare results (no expected SWHID for discovered tests)
-                    comparison = self._compare_results(test_name, actual_repo_path, results, expected_swhid=None)
+                    expected_swhid = expected_tags.get(tag)
+                    comparison = self._compare_results(test_name, actual_repo_path, results, expected_swhid=expected_swhid)
                     all_results.append(comparison)
                     
                     # Log results similar to regular tests
@@ -585,8 +591,9 @@ class SwhidHarness:
                 
                 if discover_branches or discover_tags:
                     # Generate test cases for discovered branches/tags
+                    expected_config = payload.get("expected", {})
                     discovered_tests = self._discover_git_tests(payload_path, payload_name, 
-                                                                 discover_branches, discover_tags)
+                                                                 discover_branches, discover_tags, expected_config)
                     all_results.extend(discovered_tests)
                     continue
                 

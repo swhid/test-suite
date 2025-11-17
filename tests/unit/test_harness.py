@@ -8,7 +8,7 @@ import os
 import yaml
 from pathlib import Path
 from typing import Optional
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch, MagicMock, ANY
 
 from harness.harness import SwhidHarness
 from harness.plugins.base import SwhidImplementation, ImplementationInfo, SwhidTestResult, ComparisonResult
@@ -254,3 +254,48 @@ class TestSwhidHarness:
         comparison = harness._compare_results("test.txt", "/path/to/test.txt", results, "swh:1:cnt:expected123")
         
         assert comparison.all_match is False
+
+    @patch("harness.harness.subprocess.run")
+    def test_discover_git_tests_uses_expected_values(self, mock_run):
+        """Ensure autodiscovered branches compare against configured expectations."""
+        mock_run.return_value = MagicMock(stdout="* main\n", returncode=0)
+        
+        harness = SwhidHarness.__new__(SwhidHarness)
+        harness.config = {"settings": {"parallel_tests": 1}}
+        harness.results_dir = Path("test_results")
+        harness.implementations = {"impl": MockImplementation("impl")}
+        with tempfile.TemporaryDirectory() as repo_dir:
+            harness._extract_tarball_if_needed = lambda path: path
+            harness._run_single_test = Mock(return_value=SwhidTestResult(
+                payload_name="repo_branch_main",
+                payload_path=repo_dir,
+                implementation="impl",
+                swhid="swh:1:rev:expected",
+                error=None,
+                duration=0.1,
+                success=True,
+            ))
+            
+            dummy_comparison = ComparisonResult(
+                payload_name="repo_branch_main",
+                payload_path=repo_dir,
+                results={},
+                all_match=True,
+                expected_swhid="swh:1:rev:expected"
+            )
+            
+            with patch.object(harness, "_compare_results", return_value=dummy_comparison) as compare_mock:
+                harness._discover_git_tests(
+                    repo_path=repo_dir,
+                    base_name="repo",
+                    discover_branches=True,
+                    discover_tags=False,
+                    expected_config={"branches": {"main": "swh:1:rev:expected"}}
+                )
+            
+            compare_mock.assert_called_with(
+                "repo_branch_main",
+                repo_dir,
+                ANY,
+                expected_swhid="swh:1:rev:expected"
+            )

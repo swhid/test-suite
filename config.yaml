@@ -188,11 +188,28 @@ payloads:
     path: payloads/git-repository/comprehensive.tar.gz
     discover_branches: true
     discover_tags: true
+    expected:
+      branches:
+        develop: swh:1:rev:5e8a55e005e0003cd976ac876b2a598bf0d91362
+        feature-a: swh:1:rev:870dcb724e95453ab9dd2f4a58f98aeb0dcb7764
+        feature-b: swh:1:rev:229740cdc7665b5718e34e04a59fd9e981f2c149
+        hotfix: swh:1:rev:bfe454d11532e851d36ac5c2c014f12a19c9f720
+        main: swh:1:rev:997cc01b55bd38cbcc49f113c9f796e528559adf
+      tags:
+        v1.0.0: swh:1:rel:5286f13487f495993f96ae05b33d10f5f93b82f4
+        v1.0.1: swh:1:rel:bce2af7aab2b64d3198976a83cefffcd6f5b8f54
+        v1.1.0: swh:1:rel:00f5b371d166cff902716f88c59e97eb21d18a7a
+        v2.0.0: swh:1:rel:eb40be8808a4c33f3d3daab634344b673996a49f
+        v2.1.0: swh:1:rel:edaf91f706742fcb19591f59b5397b0a7a09ac39
   - description: Git repo with signed commits (GPG-signed revisions) - tests revision SWHID computation for signed commits
       - auto-discovers all branches
     name: signed_revisions
     path: payloads/git-repository/signed_revisions.tar.gz
     discover_branches: true
+    expected:
+      branches:
+        main: swh:1:rev:8a1241cc9d81178d7c1c29201354b2cb309601fe
+        signed-feature: swh:1:rev:8a1241cc9d81178d7c1c29201354b2cb309601fe
   - description: Git repo with signed tags (GPG-signed releases) - tests release SWHID computation for signed tags
     name: signed_releases
     path: payloads/git-repository/signed_releases.tar.gz
