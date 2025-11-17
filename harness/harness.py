@@ -482,7 +482,8 @@ class SwhidHarness:
     
     def _compare_results(self, payload_name: str, payload_path: str,
                         results: Dict[str, SwhidTestResult], 
-                        expected_swhid: Optional[str] = None) -> ComparisonResult:
+                        expected_swhid: Optional[str] = None,
+                        expected_error: Optional[str] = None) -> ComparisonResult:
         """Compare results across implementations."""
         supported_results = {
             name: result for name, result in results.items()
@@ -501,6 +502,19 @@ class SwhidHarness:
                 )
             # Fall through to regular comparison (e.g., missing payloads)
             supported_results = results
+        
+        # Handle negative tests: if expected_error is set, all supporting implementations should fail
+        if expected_error and supported_results:
+            all_failed = all(not r.success for r in supported_results.values())
+            if all_failed:
+                # All supporting implementations correctly rejected the invalid input
+                return ComparisonResult(
+                    payload_name=payload_name,
+                    payload_path=payload_path,
+                    results=results,
+                    all_match=True,
+                    expected_swhid=expected_swhid
+                )
         
         # Check if all implementations succeeded
         all_success = all(r.success for r in supported_results.values())
@@ -600,6 +614,7 @@ class SwhidHarness:
                             )
                         )
                     # Create comparison result with SKIPPED status
+                    expected_error = payload.get("expected_error")
                     comparison = ComparisonResult(
                         payload_name=payload_name,
                         payload_path=payload_path,
@@ -645,7 +660,8 @@ class SwhidHarness:
                             logger.error(f"Error running test for {impl.get_info().name}: {e}")
                 
                 # Compare results
-                comparison = self._compare_results(payload_name, payload_path, results, expected_swhid)
+                expected_error = payload.get("expected_error")
+                comparison = self._compare_results(payload_name, payload_path, results, expected_swhid, expected_error)
                 all_results.append(comparison)
                 
                 # Log results

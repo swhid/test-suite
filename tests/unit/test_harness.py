@@ -255,6 +255,19 @@ class TestSwhidHarness:
         
         assert comparison.all_match is False
     
+    def test_compare_results_negative_test_all_fail(self):
+        """Test negative tests where all implementations should fail."""
+        results = {
+            "impl1": SwhidTestResult("test.txt", "/path", "impl1", None, "Error: invalid input", 1.0, False),
+            "impl2": SwhidTestResult("test.txt", "/path", "impl2", None, "Error: invalid input", 1.5, False)
+        }
+        
+        harness = SwhidHarness.__new__(SwhidHarness)  # Create without __init__
+        comparison = harness._compare_results("test.txt", "/path/to/test.txt", results, expected_error="COMPUTE_ERROR")
+        
+        # Negative test passes when all implementations correctly reject invalid input
+        assert comparison.all_match is True
+    
     def test_compare_results_only_unsupported(self):
         """Tests with only unsupported implementations should be marked as skipped (match)."""
         unsupported_error = "Object type 'snapshot' (SWHID code 'snp') not supported by implementation"

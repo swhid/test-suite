@@ -283,10 +283,6 @@ payloads:
     path: payloads/git/with_tags/
     tag: v2.0
     expected_swhid: swh:1:rel:a7c9921fab18efe11882532bdf751f44a704917a
-  - description: Release from lightweight tag (if supported)
-    name: lightweight_release
-    path: payloads/git/lightweight_vs_annotated/
-    tag: v2.0
   - description: Release from signed_releases repo (signed tag v1.0.0)
     name: signed_release_v1
     path: payloads/git-repository/signed_releases.tar.gz
@@ -337,6 +333,11 @@ payloads:
     expected_error: IO_ERROR
     name: nonexistent_file
     path: payloads/negative/nonexistent_file.txt
+  - description: Release from lightweight tag (should be rejected - lightweight tags cannot be releases per SWHID spec)
+    expected_error: COMPUTE_ERROR
+    name: lightweight_release
+    path: payloads/git/lightweight_vs_annotated/
+    tag: v2.0
 settings:
   cleanup_temp: true
   max_file_size: 100MB

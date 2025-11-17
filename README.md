@@ -83,6 +83,21 @@ Edit `config.yaml` to:
 - Adjust test settings (timeout, parallelism)
 - Configure output options
 
+### Negative Tests
+
+Negative tests verify that implementations correctly reject invalid inputs. Add tests to the `negative` category with an `expected_error` field:
+
+```yaml
+negative:
+  - description: Release from lightweight tag (should be rejected)
+    expected_error: COMPUTE_ERROR
+    name: lightweight_release
+    path: payloads/git/lightweight_vs_annotated/
+    tag: v2.0
+```
+
+A negative test passes when all supporting implementations correctly fail (reject the invalid input). Implementations that don't support the object type are automatically skipped and don't affect the result.
+
 ### Autodiscovery expectations
 
 For Git archives that enable `discover_branches` and/or `discover_tags`, provide
