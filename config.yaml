@@ -88,18 +88,16 @@ payloads:
     expected_swhid: swh:1:dir:367667c0665514d6e9aacf236eca852ae92c0cf6
     name: entry_ordering
     path: payloads/directory/edge_cases/entry_ordering/
-  - description: Directory with special characters in filenames (spaces, semicolons,
-      percent signs)
+  - description: Directory with special characters in filenames (spaces, semicolons, percent signs)
     expected_swhid: swh:1:dir:09b68fff5b158f616bd76d5e82836dafc6b96aaf
     name: special_chars
     path: payloads/directory/edge_cases/special_chars/
-  - description: Directory testing path= qualifier with percent-encoded vs literal
-      slashes (file%2Fwith%2Fslash vs file/with/slash)
+  - description: Directory testing path= qualifier with percent-encoded vs literal slashes (file%2Fwith%2Fslash vs file/with/slash)
     expected_swhid: swh:1:dir:cfed4cb9781dbec4a5d0184bd2f671dc350137ca
     name: path_terminator
     path: payloads/directory/edge_cases/path_terminator/
-  - description: Directory testing path= qualifier with percent-encoded vs literal
-      percent signs (file%25with%25percent vs file%with%percent)
+  - description: Directory testing path= qualifier with percent-encoded vs literal percent signs (file%25with%25percent vs
+      file%with%percent)
     expected_swhid: swh:1:dir:e74c2821d3ed7d865d81068116994c209988dac2
     name: empty_paths
     path: payloads/directory/edge_cases/empty_paths/
@@ -111,8 +109,7 @@ payloads:
     expected_swhid: swh:1:dir:6a805bfd6380e2e1e4412ac66933ebd244fb9d72
     name: mixed_types
     path: payloads/directory/edge_cases/mixed_types/
-  - description: Directory with Unicode characters in filenames (Chinese, Cyrillic,
-      Japanese, emoji)
+  - description: Directory with Unicode characters in filenames (Chinese, Cyrillic, Japanese, emoji)
     expected_swhid: swh:1:dir:ee7194e754e8a911d41b83a06c10a22b7266d1bd
     name: unicode_names
     path: payloads/directory/edge_cases/unicode_names/
@@ -125,13 +122,11 @@ payloads:
     expected_swhid: swh:1:snp:352cda5f11c8adf649c60ca0f06e7aada144db38
     name: synthetic_repo
     path: payloads/git/synthetic/
-  - description: Git repo with snapshot branches in alphabetical order (alpha, beta,
-      gamma, zeta) - tests branch ordering
+  - description: Git repo with snapshot branches in alphabetical order (alpha, beta, gamma, zeta) - tests branch ordering
     expected_swhid: swh:1:snp:8f0d48de532ad98671b25f6b069ee3003f46a505
     name: snapshot_branch_order
     path: payloads/git/snapshot_branch_order/
-  - description: Git repo with dangling branches (branches pointing to non-existent
-      commits)
+  - description: Git repo with dangling branches (branches pointing to non-existent commits)
     expected_swhid: swh:1:snp:0ce5ce1b6f89d6b89c7ae6a603253e0916f8c84a
     name: dangling_branches
     path: payloads/git/dangling_branches/
@@ -172,18 +167,15 @@ payloads:
     name: simple_revisions
     path: payloads/git-repository/simple_revisions.tar.gz
     expected_swhid: swh:1:snp:2f1450c1be7a6945b69d2c3724ac30a3be025e92
-  - description: Git repo with merge commits - tests snapshot and revision from merge
-      commit
+  - description: Git repo with merge commits - tests snapshot and revision from merge commit
     name: merge_commits
     path: payloads/git-repository/merge_commits.tar.gz
     expected_swhid: swh:1:snp:5c9c3c9be880d0ac89707304017006716d6749a6
-  - description: Git repo with both annotated and lightweight tags - tests snapshot,
-      release
+  - description: Git repo with both annotated and lightweight tags - tests snapshot, release
     name: tag_types
     path: payloads/git-repository/tag_types.tar.gz
     expected_swhid: swh:1:snp:98a720761e59ff1704a84b38e0f3f683a6c2d5d9
-  - description: Git repo with multiple branches (alpha, beta, gamma, zeta, main)
-      - tests snapshot branch ordering
+  - description: Git repo with multiple branches (alpha, beta, gamma, zeta, main) - tests snapshot branch ordering
     name: branch_ordering
     path: payloads/git-repository/branch_ordering.tar.gz
     expected_swhid: swh:1:snp:e44a647204ef944dd0fd28302a0d65124b93cd36
@@ -191,19 +183,17 @@ payloads:
     name: complex_merges
     path: payloads/git-repository/complex_merges.tar.gz
     expected_swhid: swh:1:snp:604524a5decb4c927258eb4d9f5a121c48218bd4
-  - description: Comprehensive Git repo with multiple branches and annotated tags
-      - auto-discovers all branches and tags
+  - description: Comprehensive Git repo with multiple branches and annotated tags - auto-discovers all branches and tags
     name: comprehensive
     path: payloads/git-repository/comprehensive.tar.gz
     discover_branches: true
     discover_tags: true
-  - description: Git repo with signed commits (GPG-signed revisions) - tests revision
-      SWHID computation for signed commits - auto-discovers all branches
+  - description: Git repo with signed commits (GPG-signed revisions) - tests revision SWHID computation for signed commits
+      - auto-discovers all branches
     name: signed_revisions
     path: payloads/git-repository/signed_revisions.tar.gz
     discover_branches: true
-  - description: Git repo with signed tags (GPG-signed releases) - tests release SWHID
-      computation for signed tags
+  - description: Git repo with signed tags (GPG-signed releases) - tests release SWHID computation for signed tags
     name: signed_releases
     path: payloads/git-repository/signed_releases.tar.gz
     expected_swhid: swh:1:snp:1a358894eaa5f6f9727168d9280e992af1a076b4
