@@ -8,10 +8,13 @@ for the testing harness.
 import subprocess
 import os
 import sys
+import logging
 from pathlib import Path
 from typing import Optional
 
 from harness.plugins.base import SwhidImplementation, ImplementationInfo, ImplementationCapabilities
+
+logger = logging.getLogger(__name__)
 
 class Implementation(SwhidImplementation):
     """Rust SWHID implementation plugin."""
@@ -70,6 +73,43 @@ class Implementation(SwhidImplementation):
             supports_percent_encoding=True
         )
     
+    def _ensure_binary_built(self, project_root: str, needs_git: bool = False) -> str:
+        """Ensure the Rust binary is built and return its path.
+        
+        Args:
+            project_root: Path to the Rust project root
+            needs_git: Whether the binary needs to be built with git feature
+        """
+        binary_path = Path(project_root) / "target" / "release" / "swhid"
+        
+        # Check if binary exists
+        if binary_path.exists() and binary_path.is_file():
+            return str(binary_path)
+        
+        # Binary doesn't exist, build it
+        logger.info(f"Building Rust binary at {project_root}...")
+        build_cmd = ["cargo", "build", "--release"]
+        if needs_git:
+            # Need git feature for Git-related commands
+            build_cmd.extend(["--features", "git"])
+        
+        result = subprocess.run(
+            build_cmd,
+            cwd=project_root,
+            capture_output=True,
+            text=True,
+            timeout=300  # 5 minutes for build
+        )
+        
+        if result.returncode != 0:
+            error_msg = result.stderr.strip() or result.stdout.strip()
+            raise RuntimeError(f"Failed to build Rust binary: {error_msg}")
+        
+        if not binary_path.exists():
+            raise RuntimeError(f"Binary not found after build: {binary_path}")
+        
+        return str(binary_path)
+    
     def compute_swhid(self, payload_path: str, obj_type: Optional[str] = None,
                      commit: Optional[str] = None, tag: Optional[str] = None) -> str:
         """Compute SWHID for a payload using the Rust implementation."""
@@ -85,9 +125,15 @@ class Implementation(SwhidImplementation):
         if not project_root:
             raise RuntimeError("Could not find Rust project root (/home/dicosmo/code/swhid-rs)")
         
+        # Determine if we need git feature
+        needs_git = obj_type in ("snapshot", "revision", "release")
+        
+        # Ensure binary is built (check and build if needed)
+        binary_path = self._ensure_binary_built(project_root, needs_git=needs_git)
+        
         # Build the command based on object type
-        # The Rust CLI uses subcommands: content, dir, git
-        cmd = ["cargo", "run", "--release", "--"]
+        # Run the binary directly instead of cargo run
+        cmd = [binary_path]
         
         if obj_type == "content":
             # For content: swhid content --file <path>
@@ -97,9 +143,8 @@ class Implementation(SwhidImplementation):
             cmd.extend(["dir", payload_path])
         elif obj_type == "snapshot":
             # For snapshot: swhid git snapshot <REPO> [COMMIT]
-            # Note: requires --features git, so we need to enable it
+            # Note: requires --features git, so we need to ensure binary was built with git feature
             # Uses positional arguments, not --repo flag
-            cmd = ["cargo", "run", "--release", "--features", "git", "--"]
             cmd.extend(["git", "snapshot", payload_path])
         elif obj_type == "revision":
             # For revision: swhid git revision <REPO> [COMMIT]
@@ -124,7 +169,6 @@ class Implementation(SwhidImplementation):
                     # If git rev-parse fails, use original commit (let Rust tool handle it)
                     resolved_commit = commit
             
-            cmd = ["cargo", "run", "--release", "--features", "git", "--"]
             cmd.extend(["git", "revision", payload_path])
             if resolved_commit:
                 cmd.append(resolved_commit)
@@ -133,7 +177,6 @@ class Implementation(SwhidImplementation):
             # Uses positional arguments: <REPO> <TAG>
             if not tag:
                 raise ValueError("Release SWHID requires a tag name")
-            cmd = ["cargo", "run", "--release", "--features", "git", "--"]
             cmd.extend(["git", "release", payload_path, tag])
         else:
             raise ValueError(f"Unsupported object type: {obj_type}")
@@ -145,7 +188,7 @@ class Implementation(SwhidImplementation):
                 capture_output=True,
                 text=True,
                 cwd=project_root,
-                timeout=30
+                timeout=60  # Increased timeout since we're running binary directly (no compilation)
             )
             
             if result.returncode != 0:
