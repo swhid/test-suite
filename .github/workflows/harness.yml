@@ -52,7 +52,13 @@ jobs:
       
       - name: Install Software Heritage Python tools
         run: |
-          pip install swh.model swh.core || echo "Warning: swh Python tools not available, some implementations may be skipped"
+          if [ "$RUNNER_OS" == "Windows" ]; then
+            # swh.core has test data files with colons in names, which Windows doesn't support
+            # swh.model is sufficient for the python implementation
+            pip install swh.model || echo "Warning: swh.model not available, python implementation will be skipped"
+          else
+            pip install swh.model swh.core || echo "Warning: swh Python tools not available, some implementations may be skipped"
+          fi
         continue-on-error: true
       
       - name: Setup Rust toolchain
@@ -233,7 +239,13 @@ jobs:
           
           # Check for updates in swh Python packages
           echo "### Software Heritage Python Packages" >> $GITHUB_STEP_SUMMARY
-          for package in swh.model swh.core; do
+          # On Windows, only swh.model is installed (swh.core has incompatible test data)
+          if [ "$RUNNER_OS" == "Windows" ]; then
+            PACKAGES="swh.model"
+          else
+            PACKAGES="swh.model swh.core"
+          fi
+          for package in $PACKAGES; do
             INSTALLED_VERSION=$(pip show $package 2>/dev/null | grep "^Version:" | awk '{print $2}' || echo "not installed")
             if [ "$INSTALLED_VERSION" != "not installed" ]; then
               # Store version for state file
