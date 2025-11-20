@@ -137,8 +137,7 @@ jobs:
                 echo "Repository URL (masked): https://***@${SWHID_RS_REPO#https://}"
                 echo "Attempting clone with explicit HTTPS..."
                 # Unset GIT_SSH_COMMAND (don't set to empty string) and force HTTPS
-                # Also disable any URL rewriting that might convert HTTPS to SSH
-                (unset GIT_SSH_COMMAND; unset GIT_SSH; GIT_CONFIG_NOSYSTEM=1 git -c url."https://github.com/".insteadOf="" -c url."git@github.com:".insteadOf="" clone "$REPO_URL" /tmp/swhid-rs 2>&1) | tee /tmp/swhid-rs-clone.log
+                (unset GIT_SSH_COMMAND; unset GIT_SSH; GIT_CONFIG_NOSYSTEM=1 git clone "$REPO_URL" /tmp/swhid-rs 2>&1) | tee /tmp/swhid-rs-clone.log
                 CLONE_EXIT_CODE=${PIPESTATUS[0]}
               elif [ -n "${{ secrets.GITHUB_TOKEN }}" ]; then
                 # Fallback to GITHUB_TOKEN if available
@@ -147,15 +146,13 @@ jobs:
                 echo "Using GITHUB_TOKEN for repository access"
                 echo "Repository URL (masked): https://***@${SWHID_RS_REPO#https://}"
                 echo "Attempting clone with explicit HTTPS..."
-                # Disable any URL rewriting that might convert HTTPS to SSH
-                (unset GIT_SSH_COMMAND; unset GIT_SSH; GIT_CONFIG_NOSYSTEM=1 git -c url."https://github.com/".insteadOf="" -c url."git@github.com:".insteadOf="" clone "$REPO_URL" /tmp/swhid-rs 2>&1) | tee /tmp/swhid-rs-clone.log
+                (unset GIT_SSH_COMMAND; unset GIT_SSH; GIT_CONFIG_NOSYSTEM=1 git clone "$REPO_URL" /tmp/swhid-rs 2>&1) | tee /tmp/swhid-rs-clone.log
                 CLONE_EXIT_CODE=${PIPESTATUS[0]}
               else
                 # Try public access (will fail for private repos)
                 echo "No token available, attempting public access"
                 echo "Attempting clone with explicit HTTPS..."
-                # Disable any URL rewriting that might convert HTTPS to SSH
-                (unset GIT_SSH_COMMAND; unset GIT_SSH; GIT_CONFIG_NOSYSTEM=1 git -c url."https://github.com/".insteadOf="" -c url."git@github.com:".insteadOf="" clone "$SWHID_RS_REPO" /tmp/swhid-rs 2>&1) | tee /tmp/swhid-rs-clone.log
+                (unset GIT_SSH_COMMAND; unset GIT_SSH; GIT_CONFIG_NOSYSTEM=1 git clone "$SWHID_RS_REPO" /tmp/swhid-rs 2>&1) | tee /tmp/swhid-rs-clone.log
                 CLONE_EXIT_CODE=${PIPESTATUS[0]}
               fi
             else
