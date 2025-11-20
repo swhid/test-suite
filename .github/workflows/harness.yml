@@ -12,7 +12,6 @@ on:
 jobs:
   test:
     runs-on: ${{ matrix.os }}
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || matrix.os == 'ubuntu-24.04'
     permissions:
       contents: read
     strategy:
@@ -28,6 +27,11 @@ jobs:
             python-version: "3.12"
     
     steps:
+      - name: Skip non-Linux on non-scheduled runs
+        if: github.event_name != 'schedule' && github.event_name != 'workflow_dispatch' && matrix.os != 'ubuntu-24.04'
+        run: |
+          echo "Skipping ${{ matrix.os }} on non-scheduled runs"
+          exit 0
       - name: Checkout code
         uses: actions/checkout@v4
         with:
