@@ -81,11 +81,64 @@ class SwhidHarness:
         for temp_dir in self._temp_dirs:
             if os.path.exists(temp_dir):
                 try:
-                    shutil.rmtree(temp_dir)
+                    if platform.system() == 'Windows':
+                        # On Windows, use a more robust cleanup that handles locked files
+                        self._rmtree_windows(temp_dir)
+                    else:
+                        shutil.rmtree(temp_dir)
                     logger.debug(f"Cleaned up temporary directory: {temp_dir}")
                 except Exception as e:
                     logger.warning(f"Failed to clean up temporary directory {temp_dir}: {e}")
         self._temp_dirs.clear()
+    
+    def _rmtree_windows(self, path):
+        """Windows-specific recursive delete that handles locked files gracefully.
+        
+        On Windows, Git object files may be locked by the file system, preventing
+        normal deletion. This method attempts to handle such cases gracefully.
+        """
+        import stat
+        import time
+        
+        def handle_remove_readonly(func, path, exc):
+            """Handle readonly files on Windows."""
+            if os.path.exists(path):
+                try:
+                    os.chmod(path, stat.S_IWRITE)
+                    func(path)
+                except (OSError, PermissionError):
+                    pass  # Skip files that can't be modified
+        
+        # Retry with exponential backoff for locked files
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                shutil.rmtree(path, onerror=handle_remove_readonly)
+                return
+            except (OSError, PermissionError) as e:
+                if attempt < max_retries - 1:
+                    time.sleep(0.1 * (2 ** attempt))
+                else:
+                    # Last attempt failed - try best-effort cleanup
+                    logger.debug(f"Could not fully remove {path} after {max_retries} attempts, attempting best-effort cleanup")
+                    try:
+                        # Try to remove individual files that aren't locked
+                        for root, dirs, files in os.walk(path, topdown=False):
+                            for name in files:
+                                file_path = os.path.join(root, name)
+                                try:
+                                    os.chmod(file_path, stat.S_IWRITE)
+                                    os.remove(file_path)
+                                except (OSError, PermissionError):
+                                    pass  # Skip locked files
+                            for name in dirs:
+                                dir_path = os.path.join(root, name)
+                                try:
+                                    os.rmdir(dir_path)
+                                except (OSError, PermissionError):
+                                    pass  # Skip locked directories
+                    except Exception:
+                        pass  # Best effort cleanup - don't fail if this also fails
     
     def _obj_type_to_swhid_code(self, obj_type: str) -> str:
         """Map object type to SWHID type code."""
