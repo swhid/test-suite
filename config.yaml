@@ -114,7 +114,7 @@ payloads:
     name: unicode_names
     path: payloads/directory/edge_cases/unicode_names/
   - description: Directory with Unicode normalization test (NFC vs NFD filenames)
-    expected_swhid: swh:1:dir:711f9f92492d71b793b2feec2392b67890620f77
+    expected_swhid: swh:1:dir:53d793e1a86c17e1c120e8cf1d9cec788a5c360f
     name: unicode_normalization
     path: payloads/directory/edge_cases/unicode_normalization/
   git:
