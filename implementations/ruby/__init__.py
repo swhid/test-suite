@@ -1,0 +1,1 @@
+"""Ruby SWHID Implementation Plugin"""
