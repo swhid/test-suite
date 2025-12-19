@@ -521,6 +521,27 @@ jobs:
         uses: actions/configure-pages@v5
         continue-on-error: true
       
+      - name: Verify site structure
+        if: steps.pages-check.outputs.enabled == 'true'
+        shell: bash
+        run: |
+          echo "Verifying site structure..."
+          if [ ! -f site/index.html ]; then
+            echo "ERROR: site/index.html not found!"
+            echo "Site contents:"
+            ls -la site/ || true
+            find site/ -type f | head -20
+            exit 1
+          fi
+          echo "✓ site/index.html exists"
+          if [ -d site/data ]; then
+            echo "✓ site/data/ directory exists"
+            ls -la site/data/ || true
+          fi
+          if [ -d site/assets ]; then
+            echo "✓ site/assets/ directory exists"
+          fi
+      
       - name: Upload Pages artifact
         if: steps.pages-check.outputs.enabled == 'true'
         uses: actions/upload-pages-artifact@v3
