@@ -1,0 +1,2 @@
+"""View generators for dashboard."""
+
