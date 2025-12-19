@@ -530,9 +530,30 @@ jobs:
         with:
           script: |
             try {
-              await github.rest.pages.get({ owner: context.repo.owner, repo: context.repo.repo });
-              core.setOutput('enabled', 'true');
+              const pages = await github.rest.pages.get({ owner: context.repo.owner, repo: context.repo.repo });
+              console.log('Pages status:', JSON.stringify(pages.data, null, 2));
+              
+              // Check if Pages is configured for GitHub Actions
+              if (pages.data.source && pages.data.source.type === 'workflow') {
+                console.log('✓ Pages is configured for GitHub Actions');
+                core.setOutput('enabled', 'true');
+              } else if (pages.data.source && pages.data.source.type === 'branch') {
+                console.log('⚠ Pages is configured for branch deployment, not GitHub Actions');
+                console.log('⚠ Please change Pages source to "GitHub Actions" in repository settings');
+                console.log('⚠ See PAGES_CONFIGURATION_FIX.md for instructions');
+                core.setOutput('enabled', 'false');
+              } else {
+                console.log('⚠ Pages source type unknown:', pages.data.source);
+                core.setOutput('enabled', 'false');
+              }
             } catch (error) {
+              console.log('❌ Pages is not enabled or API call failed');
+              console.log('Error:', error.message);
+              console.log('');
+              console.log('To enable Pages:');
+              console.log('1. Go to Settings → Pages');
+              console.log('2. Under Source, select "GitHub Actions"');
+              console.log('3. See PAGES_CONFIGURATION_FIX.md for detailed instructions');
               core.setOutput('enabled', 'false');
             }
       
