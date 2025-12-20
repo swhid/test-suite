@@ -84,8 +84,10 @@ class Implementation(SwhidImplementation):
     def _compute_content_swhid(self, file_path: str) -> str:
         """Compute content SWHID using git hash-object command."""
         try:
+            # Use --no-filters to bypass line ending conversion (important for Windows)
+            # This ensures CRLF line endings are preserved as-is
             result = subprocess.run(
-                ["git", "hash-object", file_path],
+                ["git", "hash-object", "--no-filters", file_path],
                 capture_output=True,
                 text=True,
                 check=True
@@ -106,12 +108,28 @@ class Implementation(SwhidImplementation):
             subprocess.run(["git", "init"], cwd=repo_path, check=True, 
                          capture_output=True)
             
+            # Configure Git for SWHID testing (preserve line endings and permissions)
+            # This is critical for cross-platform consistency
+            subprocess.run(["git", "config", "core.autocrlf", "false"], 
+                         cwd=repo_path, check=True, capture_output=True)
+            subprocess.run(["git", "config", "core.filemode", "true"], 
+                         cwd=repo_path, check=True, capture_output=True)
+            subprocess.run(["git", "config", "core.precomposeunicode", "false"], 
+                         cwd=repo_path, check=True, capture_output=True)
+            
             # Copy the directory contents maintaining the structure
             # Use a target subdirectory to avoid conflicts with .git
             target_path = os.path.join(repo_path, "target")
             if os.path.isdir(dir_path):
                 # Copy the entire directory structure, preserving symlinks
-                shutil.copytree(dir_path, target_path, symlinks=True)
+                # On Windows, symlinks may not be supported, so handle gracefully
+                try:
+                    shutil.copytree(dir_path, target_path, symlinks=True)
+                except (OSError, NotImplementedError) as e:
+                    # If symlink copy fails (e.g., on Windows without privileges),
+                    # fall back to copying without symlinks
+                    # This is a known limitation on Windows
+                    shutil.copytree(dir_path, target_path, symlinks=False)
             else:
                 # If it's a file, create target directory and copy file
                 os.makedirs(target_path)
@@ -128,8 +146,9 @@ class Implementation(SwhidImplementation):
                     shutil.move(src, dst)
             os.rmdir(target_path)
             
-            # Add all files to Git (this will handle symlinks correctly)
-            subprocess.run(["git", "add", "."], cwd=repo_path, check=True,
+            # Add all files to Git with --no-filters to preserve line endings
+            # This is critical for Windows where Git might normalize CRLF to LF
+            subprocess.run(["git", "add", "--no-filters", "."], cwd=repo_path, check=True,
                          capture_output=True)
             
             # Get the tree hash for the root directory

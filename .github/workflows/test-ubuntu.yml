@@ -60,6 +60,16 @@ jobs:
           gem install swhid || echo "Warning: swhid gem not available, Ruby implementation will be skipped"
         continue-on-error: true
       
+      - name: Configure Git for SWHID testing
+        shell: bash
+        run: |
+          # Configure Git to preserve line endings and file permissions for SWHID testing
+          git config --global core.autocrlf false
+          git config --global core.filemode true
+          git config --global core.precomposeunicode false
+          git config --global core.quotepath false
+          echo "Git configured for SWHID testing"
+      
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:

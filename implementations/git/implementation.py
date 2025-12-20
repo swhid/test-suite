@@ -120,9 +120,31 @@ class Implementation(SwhidImplementation):
                         dst_file = os.path.join(repo_dir, file)
                         
                         # Handle symlinks - copy them as symlinks
+                        # On Windows, symlinks require special privileges
                         if os.path.islink(src_file):
-                            link_target = os.readlink(src_file)
-                            os.symlink(link_target, dst_file)
+                            try:
+                                link_target = os.readlink(src_file)
+                                # On Windows, check if we can create symlinks
+                                import platform
+                                if platform.system() == 'Windows':
+                                    # Try to create symlink, fall back to copying if it fails
+                                    try:
+                                        os.symlink(link_target, dst_file)
+                                    except (OSError, NotImplementedError):
+                                        # If symlink creation fails, copy the target file instead
+                                        # This is a limitation on Windows without admin/dev mode
+                                        if os.path.exists(link_target):
+                                            shutil.copy2(link_target, dst_file)
+                                        else:
+                                            # If target doesn't exist, create empty file
+                                            # This matches Git's behavior for broken symlinks
+                                            with open(dst_file, 'wb') as f:
+                                                f.write(link_target.encode('utf-8'))
+                                else:
+                                    os.symlink(link_target, dst_file)
+                            except (OSError, NotImplementedError):
+                                # If symlink operations fail, skip it
+                                continue
                         # Copy regular files
                         elif os.path.isfile(src_file):
                             shutil.copy2(src_file, dst_file)
@@ -168,8 +190,27 @@ class Implementation(SwhidImplementation):
                 
                 # Git uses 0o100755 for executable files, 0o100644 for regular files
                 import stat
+                import platform
                 file_mode = os.stat(item_path).st_mode
-                mode = 0o100755 if (file_mode & stat.S_IEXEC) else 0o100644
+                
+                # On Windows, check file extension and try to detect executables
+                # Windows doesn't have reliable executable bit, so we check:
+                # 1. Unix executable bit (if available)
+                # 2. File extension (for Windows)
+                is_executable = False
+                if platform.system() == 'Windows':
+                    # On Windows, check file extension for common executables
+                    ext = os.path.splitext(item_path)[1].lower()
+                    executable_extensions = {'.exe', '.bat', '.cmd', '.com', '.ps1', '.sh'}
+                    is_executable = ext in executable_extensions
+                    # Also check if file has .sh extension (shell script)
+                    if not is_executable and item.endswith('.sh'):
+                        is_executable = True
+                else:
+                    # On Unix-like systems, check executable bit
+                    is_executable = bool(file_mode & stat.S_IEXEC)
+                
+                mode = 0o100755 if is_executable else 0o100644
                 entries.append((item.encode(), mode, blob.id))
                 
             elif os.path.isdir(item_path):
