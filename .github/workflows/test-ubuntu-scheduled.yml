@@ -510,31 +510,51 @@ jobs:
         with:
           script: |
             try {
-              const pages = await github.rest.pages.get({ owner: context.repo.owner, repo: context.repo.repo });
+              // Check if pages API is available
+              if (!github.rest || !github.rest.pages) {
+                console.log('⚠ Pages API not available in this context');
+                console.log('⚠ Attempting to proceed with Pages deployment anyway');
+                console.log('⚠ If deployment fails, ensure Pages is enabled in repository settings');
+                core.setOutput('enabled', 'true'); // Try anyway
+                return;
+              }
+              
+              const pages = await github.rest.pages.get({ 
+                owner: context.repo.owner, 
+                repo: context.repo.repo 
+              });
+              
               console.log('Pages status:', JSON.stringify(pages.data, null, 2));
               
               // Check if Pages is configured for GitHub Actions
-              if (pages.data.source && pages.data.source.type === 'workflow') {
-                console.log('✓ Pages is configured for GitHub Actions');
-                core.setOutput('enabled', 'true');
-              } else if (pages.data.source && pages.data.source.type === 'branch') {
-                console.log('⚠ Pages is configured for branch deployment, not GitHub Actions');
-                console.log('⚠ Please change Pages source to "GitHub Actions" in repository settings');
-                console.log('⚠ See PAGES_CONFIGURATION_FIX.md for instructions');
-                core.setOutput('enabled', 'false');
+              if (pages.data && pages.data.source) {
+                if (pages.data.source.type === 'workflow') {
+                  console.log('✓ Pages is configured for GitHub Actions');
+                  core.setOutput('enabled', 'true');
+                } else if (pages.data.source.type === 'branch') {
+                  console.log('⚠ Pages is configured for branch deployment, not GitHub Actions');
+                  console.log('⚠ Please change Pages source to "GitHub Actions" in repository settings');
+                  console.log('⚠ See PAGES_CONFIGURATION_FIX.md for instructions');
+                  core.setOutput('enabled', 'false');
+                } else {
+                  console.log('⚠ Pages source type unknown:', pages.data.source.type);
+                  console.log('⚠ Attempting to proceed anyway');
+                  core.setOutput('enabled', 'true'); // Try anyway
+                }
               } else {
-                console.log('⚠ Pages source type unknown:', pages.data.source);
-                core.setOutput('enabled', 'false');
+                console.log('⚠ Pages data structure unexpected, attempting to proceed');
+                core.setOutput('enabled', 'true'); // Try anyway
               }
             } catch (error) {
-              console.log('❌ Pages is not enabled or API call failed');
+              console.log('⚠ Pages API call failed, but attempting to proceed');
               console.log('Error:', error.message);
               console.log('');
-              console.log('To enable Pages:');
-              console.log('1. Go to Settings → Pages');
-              console.log('2. Under Source, select "GitHub Actions"');
+              console.log('Note: If Pages deployment fails, ensure:');
+              console.log('1. Pages is enabled in Settings → Pages');
+              console.log('2. Pages source is set to "GitHub Actions"');
               console.log('3. See PAGES_CONFIGURATION_FIX.md for detailed instructions');
-              core.setOutput('enabled', 'false');
+              // Try to proceed anyway - let configure-pages handle the actual check
+              core.setOutput('enabled', 'true');
             }
       
       - name: Configure Pages
