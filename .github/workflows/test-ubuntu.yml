@@ -47,6 +47,19 @@ jobs:
           pip install swh.model swh.core || echo "Warning: swh Python tools not available, some implementations may be skipped"
         continue-on-error: true
       
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.2'
+          bundler-cache: false
+        continue-on-error: true
+      
+      - name: Install swhid gem
+        shell: bash
+        run: |
+          gem install swhid || echo "Warning: swhid gem not available, Ruby implementation will be skipped"
+        continue-on-error: true
+      
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:

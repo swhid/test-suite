@@ -10,6 +10,14 @@ A technology-neutral testing harness for comparing different SWHID (Software Her
 pip install -e .[dev]
 ```
 
+### Optional: Install Implementation Dependencies
+
+Some implementations require additional dependencies:
+
+- **Ruby**: `gem install swhid` (add `~/.gem/ruby/*/bin` to PATH)
+- **Rust**: Install Rust toolchain if testing Rust implementation
+- **Python**: `swh.model` and `swh.core` packages are optional but recommended
+
 ### Basic Usage
 
 ```bash

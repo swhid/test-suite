@@ -10,6 +10,31 @@ Complete guide for running tests and adding new SWHID implementations.
 pip install -e .[dev]
 ```
 
+### Optional: Install Implementation Dependencies
+
+Some implementations require additional dependencies:
+
+**Ruby Implementation:**
+```bash
+# Install Ruby (if not already installed)
+# On Ubuntu/Debian: sudo apt-get install ruby
+# On macOS: ruby is usually pre-installed
+
+# Install the swhid gem
+gem install swhid
+
+# Add gem bin directory to PATH (add to ~/.bashrc or ~/.zshrc)
+export PATH="$HOME/.gem/ruby/$(ruby -e 'puts RUBY_VERSION.split(".")[0..1].join(".")')/bin:$PATH"
+```
+
+**Rust Implementation:**
+- Requires Rust toolchain (installed automatically in CI)
+- For local development, install via: `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh`
+
+**Python Implementations:**
+- Python implementations are included automatically
+- `swh.model` and `swh.core` are optional but recommended for full coverage
+
 ### Run Tests
 
 ```bash

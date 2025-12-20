@@ -13,6 +13,60 @@ from harness.plugins.base import SwhidImplementation, ImplementationInfo, Implem
 
 class Implementation(SwhidImplementation):
     """Ruby SWHID implementation plugin."""
+    
+    def __init__(self):
+        """Initialize Ruby implementation and find swhid command path."""
+        super().__init__()
+        self._swhid_path = None
+        self._find_swhid_path()
+    
+    def _find_swhid_path(self) -> Optional[str]:
+        """Find the swhid command path and cache it."""
+        if self._swhid_path:
+            return self._swhid_path
+        
+        import shutil
+        
+        # First, try to find swhid command in PATH
+        swhid_path = shutil.which("swhid")
+        if swhid_path:
+            self._swhid_path = swhid_path
+            return swhid_path
+        
+        # If not in PATH, try common gem locations
+        import os
+        import glob
+        home = os.path.expanduser("~")
+        gem_paths = [
+            os.path.join(home, ".gem", "ruby", "*", "bin", "swhid"),
+            os.path.join(home, ".local", "share", "gem", "ruby", "*", "bin", "swhid"),
+        ]
+        
+        # Also try system gem locations
+        try:
+            import subprocess as sp
+            gem_env_result = sp.run(
+                ["ruby", "-e", "puts Gem.user_dir"],
+                capture_output=True,
+                text=True,
+                timeout=2
+            )
+            if gem_env_result.returncode == 0:
+                gem_dir = gem_env_result.stdout.strip()
+                if gem_dir:
+                    gem_paths.append(os.path.join(gem_dir, "bin", "swhid"))
+        except Exception:
+            pass
+        
+        # Try to find swhid in any of these locations
+        for pattern in gem_paths:
+            matches = glob.glob(pattern)
+            for swhid_cmd in matches:
+                if os.path.isfile(swhid_cmd) and os.access(swhid_cmd, os.X_OK):
+                    self._swhid_path = swhid_cmd
+                    return swhid_cmd
+        
+        return None
 
     def get_info(self) -> ImplementationInfo:
         """Return implementation metadata."""
@@ -27,17 +81,20 @@ class Implementation(SwhidImplementation):
 
     def is_available(self) -> bool:
         """Check if Ruby implementation is available."""
+        swhid_path = self._find_swhid_path()
+        if not swhid_path:
+            return False
+        
+        # Test that the command actually works
         try:
-            # Check if swhid gem is installed and CLI is available
             result = subprocess.run(
-                ["swhid", "help"],
+                [swhid_path, "help"],
                 capture_output=True,
                 text=True,
                 timeout=5
             )
             return result.returncode == 0
-
-        except (subprocess.TimeoutExpired, FileNotFoundError, Exception):
+        except (subprocess.TimeoutExpired, Exception):
             return False
 
     def get_capabilities(self) -> ImplementationCapabilities:
@@ -54,9 +111,14 @@ class Implementation(SwhidImplementation):
     def compute_swhid(self, payload_path: str, obj_type: Optional[str] = None,
                      commit: Optional[str] = None, tag: Optional[str] = None) -> str:
         """Compute SWHID for a payload using the Ruby implementation."""
-
+        
+        # Get the swhid command path
+        swhid_path = self._find_swhid_path()
+        if not swhid_path:
+            raise RuntimeError("Ruby implementation not found (swhid gem not installed)")
+        
         # Build the command
-        cmd = ["swhid"]
+        cmd = [swhid_path]
 
         # Map object types to swhid CLI commands
         if obj_type == "content" or obj_type == "cnt":
