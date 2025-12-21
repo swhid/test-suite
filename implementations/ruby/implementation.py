@@ -18,6 +18,7 @@ class Implementation(SwhidImplementation):
         """Initialize Ruby implementation and find swhid command path."""
         super().__init__()
         self._swhid_path = None
+        self._temp_dirs: list = []  # Track temp directories for cleanup
         self._find_swhid_path()
     
     def _find_swhid_path(self) -> Optional[str]:
@@ -188,6 +189,9 @@ class Implementation(SwhidImplementation):
         # For directory and git types, pass path as argument
         elif cmd[1] in ["directory", "revision", "release", "snapshot"]:
             if cmd[1] == "directory":
+                # On Windows, we need to preserve file permissions before calling the tool
+                # Create a temporary copy with correct permissions
+                payload_path = self._ensure_permissions_preserved(payload_path)
                 cmd.append(payload_path)
 
             try:
@@ -217,3 +221,104 @@ class Implementation(SwhidImplementation):
                 raise RuntimeError("Ruby implementation not found (swhid gem not installed)")
             except Exception as e:
                 raise RuntimeError(f"Error running Ruby implementation: {e}")
+            finally:
+                # Cleanup temporary directories if created
+                self._cleanup_temp_dirs()
+    
+    def _ensure_permissions_preserved(self, source_path: str) -> str:
+        """Ensure file permissions are preserved for external tools.
+        
+        On Windows, files lose executable bits when copied. This method creates
+        a temporary copy with correct permissions set, which external tools
+        (like the Ruby swhid gem) can read correctly.
+        
+        Args:
+            source_path: Path to source file or directory
+        
+        Returns:
+            Path to use (may be temporary copy on Windows, or original on Unix)
+        """
+        import stat
+        import tempfile
+        import shutil
+        import platform
+        
+        # On Unix-like systems, permissions are usually preserved
+        # Only create temp copy on Windows
+        if platform.system() != 'Windows':
+            return source_path
+        
+        # Read source permissions
+        source_permissions = {}
+        if os.path.isdir(source_path):
+            for root, dirs, files in os.walk(source_path):
+                for file in files:
+                    file_path = os.path.join(root, file)
+                    rel_path = os.path.relpath(file_path, source_path)
+                    try:
+                        stat_info = os.stat(file_path)
+                        is_executable = bool(stat_info.st_mode & stat.S_IEXEC)
+                        source_permissions[rel_path] = is_executable
+                    except OSError:
+                        source_permissions[rel_path] = False
+        elif os.path.isfile(source_path):
+            try:
+                stat_info = os.stat(source_path)
+                is_executable = bool(stat_info.st_mode & stat.S_IEXEC)
+                source_permissions['.'] = is_executable  # Single file, use '.' as key
+            except OSError:
+                source_permissions['.'] = False
+        
+        # If no executable files found, no need for temp copy
+        if not any(source_permissions.values()):
+            return source_path
+        
+        # Create temporary copy with permissions
+        temp_dir = tempfile.mkdtemp(prefix="swhid-ruby-")
+        self._temp_dirs.append(temp_dir)
+        
+        if os.path.isdir(source_path):
+            # Copy directory
+            temp_path = os.path.join(temp_dir, os.path.basename(source_path) or "dir")
+            shutil.copytree(source_path, temp_path, symlinks=True)
+            
+            # Apply permissions
+            for rel_path, is_executable in source_permissions.items():
+                target_file = os.path.join(temp_path, rel_path)
+                if os.path.exists(target_file):
+                    try:
+                        current_stat = os.stat(target_file)
+                        if is_executable:
+                            os.chmod(target_file, current_stat.st_mode | stat.S_IEXEC)
+                        else:
+                            os.chmod(target_file, current_stat.st_mode & ~stat.S_IEXEC)
+                    except OSError:
+                        # On Windows, chmod might not work - that's okay
+                        pass
+            
+            return temp_path
+        else:
+            # Copy single file
+            temp_path = os.path.join(temp_dir, os.path.basename(source_path))
+            shutil.copy2(source_path, temp_path)
+            
+            # Apply permission
+            if source_permissions.get('.', False):
+                try:
+                    current_stat = os.stat(temp_path)
+                    os.chmod(temp_path, current_stat.st_mode | stat.S_IEXEC)
+                except OSError:
+                    pass
+            
+            return temp_path
+    
+    def _cleanup_temp_dirs(self):
+        """Clean up temporary directories created for permission preservation."""
+        import shutil
+        for temp_dir in self._temp_dirs:
+            try:
+                if os.path.exists(temp_dir):
+                    shutil.rmtree(temp_dir)
+            except Exception:
+                pass
+        self._temp_dirs.clear()
