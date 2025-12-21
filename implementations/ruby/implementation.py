@@ -249,12 +249,92 @@ class Implementation(SwhidImplementation):
             return source_path
         
         # Read source permissions
+        # On Windows, check Git index first as filesystem may not preserve executable bits
         source_permissions = {}
+        
+        # On Windows, try to read permissions from Git index first
+        # This is more reliable than filesystem permissions
+        try:
+            # Get absolute path to source_path
+            abs_source_path = os.path.abspath(source_path)
+            # Get repository root (walk up to find .git)
+            repo_root = abs_source_path
+            if os.path.isdir(repo_root):
+                check_path = repo_root
+            else:
+                check_path = os.path.dirname(repo_root)
+            
+            while check_path != os.path.dirname(check_path):
+                if os.path.exists(os.path.join(check_path, '.git')):
+                    repo_root = check_path
+                    break
+                check_path = os.path.dirname(check_path)
+            else:
+                repo_root = None
+            
+            # If we found a repo, check Git index for permissions
+            if repo_root:
+                if os.path.isdir(source_path):
+                    for root, dirs, files in os.walk(source_path):
+                        for file in files:
+                            file_path = os.path.join(root, file)
+                            rel_path = os.path.relpath(file_path, source_path)
+                            
+                            # Get path relative to repo root
+                            try:
+                                repo_rel_path = os.path.relpath(file_path, repo_root)
+                                # Check Git index
+                                result = subprocess.run(
+                                    ['git', 'ls-files', '--stage', repo_rel_path],
+                                    cwd=repo_root,
+                                    capture_output=True,
+                                    text=True,
+                                    timeout=2
+                                )
+                                if result.returncode == 0 and result.stdout.strip():
+                                    # Format: <mode> <sha> <stage> <path>
+                                    parts = result.stdout.strip().split()
+                                    if parts:
+                                        git_mode = parts[0]
+                                        # Mode is octal string, e.g., '100755' for executable
+                                        is_executable = git_mode.endswith('755')
+                                        source_permissions[rel_path] = is_executable
+                                        continue
+                            except (subprocess.TimeoutExpired, subprocess.CalledProcessError, ValueError):
+                                pass
+                elif os.path.isfile(source_path):
+                    try:
+                        repo_rel_path = os.path.relpath(source_path, repo_root)
+                        result = subprocess.run(
+                            ['git', 'ls-files', '--stage', repo_rel_path],
+                            cwd=repo_root,
+                            capture_output=True,
+                            text=True,
+                            timeout=2
+                        )
+                        if result.returncode == 0 and result.stdout.strip():
+                            parts = result.stdout.strip().split()
+                            if parts:
+                                git_mode = parts[0]
+                                is_executable = git_mode.endswith('755')
+                                source_permissions['.'] = is_executable
+                    except (subprocess.TimeoutExpired, subprocess.CalledProcessError, ValueError):
+                        pass
+        except Exception:
+            # If Git check fails, fall back to filesystem
+            pass
+        
+        # Fall back to filesystem permissions (works on Unix, or if Git check failed)
         if os.path.isdir(source_path):
             for root, dirs, files in os.walk(source_path):
                 for file in files:
                     file_path = os.path.join(root, file)
                     rel_path = os.path.relpath(file_path, source_path)
+                    
+                    # Skip if we already got permission from Git index
+                    if rel_path in source_permissions:
+                        continue
+                    
                     try:
                         stat_info = os.stat(file_path)
                         is_executable = bool(stat_info.st_mode & stat.S_IEXEC)
@@ -262,12 +342,14 @@ class Implementation(SwhidImplementation):
                     except OSError:
                         source_permissions[rel_path] = False
         elif os.path.isfile(source_path):
-            try:
-                stat_info = os.stat(source_path)
-                is_executable = bool(stat_info.st_mode & stat.S_IEXEC)
-                source_permissions['.'] = is_executable  # Single file, use '.' as key
-            except OSError:
-                source_permissions['.'] = False
+            # Skip if we already got permission from Git index
+            if '.' not in source_permissions:
+                try:
+                    stat_info = os.stat(source_path)
+                    is_executable = bool(stat_info.st_mode & stat.S_IEXEC)
+                    source_permissions['.'] = is_executable  # Single file, use '.' as key
+                except OSError:
+                    source_permissions['.'] = False
         
         # If no executable files found, no need for temp copy
         if not any(source_permissions.values()):
