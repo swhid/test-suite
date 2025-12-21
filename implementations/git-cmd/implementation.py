@@ -146,9 +146,10 @@ class Implementation(SwhidImplementation):
                     shutil.move(src, dst)
             os.rmdir(target_path)
             
-            # Add all files to Git with --no-filters to preserve line endings
-            # This is critical for Windows where Git might normalize CRLF to LF
-            subprocess.run(["git", "add", "--no-filters", "."], cwd=repo_path, check=True,
+            # Add all files to Git
+            # Note: We configure core.autocrlf=false in the repo, so line endings are preserved
+            # The --no-filters flag is only valid for git hash-object, not git add
+            subprocess.run(["git", "add", "."], cwd=repo_path, check=True,
                          capture_output=True)
             
             # Get the tree hash for the root directory
