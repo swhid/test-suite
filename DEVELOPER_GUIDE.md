@@ -448,6 +448,20 @@ This script:
 - Adds `expected_swhid_sha256` fields to `config.yaml`
 - Preserves existing `expected_swhid` (v1) values
 
+### Viewing v2 Test Results
+
+When running v2 tests, results will contain both v1 and v2 SWHIDs. Use variant-based table generation to view them separately:
+
+```bash
+# Generate separate tables for v1 and v2
+python scripts/view_results.py results.json --output-dir output/
+
+# Generate only v2 table
+python scripts/view_results.py results.json --output-dir output/ --variant v2_sha256_hex
+```
+
+The variant-based tables automatically use the correct expected values (`expected_swhid` for v1, `expected_swhid_sha256` for v2) and make it easy to compare results across versions. See the [Viewing Results](#viewing-results) section for more details on variant-based table generation.
+
 The script supports:
 - Content objects (files)
 - Directory objects (directories with files)
