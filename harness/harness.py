@@ -1114,10 +1114,11 @@ class SwhidHarness:
             elif "negative" in payload_path_normalized:
                 category = "negative"
             
-            # Create expected reference
+            # Create expected reference (include both v1 and v2 expected values)
             expected = ExpectedRef(
                 reference_impl="python-swhid",  # Default reference
-                swhid=result.expected_swhid
+                swhid=result.expected_swhid,
+                expected_swhid_sha256=result.expected_swhid_sha256
             )
             
             # Create results for each implementation

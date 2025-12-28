@@ -61,7 +61,8 @@ class Result(BaseModel):
 class ExpectedRef(BaseModel):
     """Reference SWHID used for validation."""
     reference_impl: Optional[str] = None
-    swhid: Optional[str] = None
+    swhid: Optional[str] = None  # v1 expected SWHID
+    expected_swhid_sha256: Optional[str] = None  # v2 expected SWHID (SHA256)
 
 
 class TestCase(BaseModel):
