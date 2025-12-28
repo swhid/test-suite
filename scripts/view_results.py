@@ -447,7 +447,15 @@ def create_html_table(results_data: Dict, variant_config: Optional[Dict] = None)
     for test in tests:
         test_id = test.get('id', 'unknown')
         expected = test.get('expected', {})
-        expected_swhid = expected.get('swhid')
+        
+        # Get expected SWHID - use variant-specific key if available
+        if variant_config:
+            expected_key = variant_config.get('expected_key', 'swhid')
+            expected_swhid = expected.get(expected_key)
+        else:
+            # Fallback: try 'swhid' first, then 'expected_swhid_sha256'
+            expected_swhid = expected.get('swhid') or expected.get('expected_swhid_sha256')
+        
         results = test.get('results', [])
         
         result_map = {r['implementation']: r for r in results}
