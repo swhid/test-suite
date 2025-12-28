@@ -1509,9 +1509,18 @@ class SwhidHarness:
                         swhid = list(disc['swhid_groups'].keys())[0]
                         impls = list(disc['swhid_groups'].values())[0]
                         # Check if this SWHID matches expected for any implementation
+                        # Also detect version from SWHID format (swh:2: vs swh:1:)
+                        is_v2_swhid = swhid.startswith('swh:2:')
                         matches_any = False
                         for impl_id in impls:
                             expected_for_impl = disc.get('expected_by_impl', {}).get(impl_id)
+                            # If no expected_by_impl entry, try to infer from SWHID version
+                            if not expected_for_impl:
+                                if is_v2_swhid and disc.get('has_expected_v2'):
+                                    expected_for_impl = disc.get('expected_swhid_v2')
+                                elif not is_v2_swhid and disc.get('has_expected_v1'):
+                                    expected_for_impl = disc.get('expected_swhid_v1')
+                            
                             if expected_for_impl and swhid == expected_for_impl:
                                 matches_any = True
                                 break
