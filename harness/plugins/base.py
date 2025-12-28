@@ -94,6 +94,7 @@ class SwhidTestResult:
     success: bool
     metrics: Optional[TestMetrics] = None
     timestamp: datetime = None
+    version: int = 1  # SWHID version (1 for v1, 2 for v2)
     
     def __post_init__(self):
         if self.timestamp is None:
@@ -115,6 +116,7 @@ class ComparisonResult:
     results: Dict[str, SwhidTestResult]
     all_match: bool
     expected_swhid: Optional[str]
+    expected_swhid_sha256: Optional[str] = None  # Expected SWHID for v2 SHA256
     timestamp: datetime = None
     
     def __post_init__(self):
