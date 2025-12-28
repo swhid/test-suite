@@ -561,7 +561,168 @@ def generate_all_tables(results_data: Dict, output_dir: Path,
         )
         output_files.append(output_file)
     
+    # Generate index page
+    index_file = generate_index_page(variants, output_dir, results_data, registry)
+    output_files.append(index_file)
+    
     return output_files
+
+
+def generate_index_page(variants: Set[str], output_dir: Path, 
+                       results_data: Dict, registry: VariantRegistry) -> Path:
+    """Generate index page linking to all variant tables.
+    
+    Args:
+        variants: Set of variant IDs found in results
+        output_dir: Directory to write index file
+        results_data: Full results dictionary (for statistics)
+        registry: VariantRegistry instance
+    
+    Returns:
+        Path to generated index.html file
+    """
+    # Calculate statistics per variant
+    variant_stats = {}
+    for variant_id in variants:
+        filtered_data = filter_results_by_variant(results_data, variant_id, registry)
+        tests = filtered_data.get('tests', [])
+        
+        total_tests = len(tests)
+        total_results = sum(len(t.get('results', [])) for t in tests)
+        passed = sum(1 for t in tests for r in t.get('results', []) 
+                    if r.get('status') == 'PASS')
+        failed = sum(1 for t in tests for r in t.get('results', []) 
+                    if r.get('status') == 'FAIL')
+        skipped = sum(1 for t in tests for r in t.get('results', []) 
+                     if r.get('status') == 'SKIPPED')
+        
+        pass_rate = round((passed / total_results * 100) if total_results > 0 else 0, 1)
+        
+        variant_config = registry.get_variant_config(variant_id)
+        variant_stats[variant_id] = {
+            'total_tests': total_tests,
+            'total_results': total_results,
+            'passed': passed,
+            'failed': failed,
+            'skipped': skipped,
+            'pass_rate': pass_rate,
+            'config': variant_config,
+        }
+    
+    # Generate HTML
+    html = ['<!DOCTYPE html>', '<html>', '<head>', '<meta charset="UTF-8">']
+    html.append('<title>SWHID Test Results - All Variants</title>')
+    html.append('<style>')
+    html.append('''
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+        h1 {
+            color: #333;
+        }
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            background-color: white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-top: 20px;
+        }
+        th {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px;
+            text-align: left;
+            font-weight: bold;
+        }
+        td {
+            padding: 8px;
+            border: 1px solid #ddd;
+        }
+        tr:hover {
+            background-color: #f5f5f5;
+        }
+        .pass-rate {
+            font-weight: bold;
+        }
+        .pass-rate.high {
+            color: #4CAF50;
+        }
+        .pass-rate.medium {
+            color: #FF9800;
+        }
+        .pass-rate.low {
+            color: #F44336;
+        }
+        a {
+            color: #2196F3;
+            text-decoration: none;
+        }
+        a:hover {
+            text-decoration: underline;
+        }
+    ''')
+    html.append('</style>')
+    html.append('</head>')
+    html.append('<body>')
+    html.append('<h1>SWHID Test Results - All Variants</h1>')
+    html.append(f'<p>Found {len(variants)} variant(s) in test results.</p>')
+    
+    # Start table
+    html.append('<table>')
+    html.append('<thead>')
+    html.append('<tr>')
+    html.append('<th>Variant</th>')
+    html.append('<th>Version</th>')
+    html.append('<th>Hash Algorithm</th>')
+    html.append('<th>Serialization</th>')
+    html.append('<th>Tests</th>')
+    html.append('<th>Results</th>')
+    html.append('<th>Passed</th>')
+    html.append('<th>Failed</th>')
+    html.append('<th>Pass Rate</th>')
+    html.append('<th>Link</th>')
+    html.append('</tr>')
+    html.append('</thead>')
+    html.append('<tbody>')
+    
+    # Add rows for each variant
+    for variant_id in sorted(variants):
+        stats = variant_stats[variant_id]
+        config = stats['config']
+        
+        # Determine pass rate class
+        if stats['pass_rate'] >= 80:
+            pass_rate_class = 'high'
+        elif stats['pass_rate'] >= 50:
+            pass_rate_class = 'medium'
+        else:
+            pass_rate_class = 'low'
+        
+        html.append('<tr>')
+        html.append(f'<td><code>{escape(variant_id)}</code></td>')
+        html.append(f'<td>{config["version"]}</td>')
+        html.append(f'<td>{escape(config["hash_algo"].upper())}</td>')
+        html.append(f'<td>{escape(config["serialization"])}</td>')
+        html.append(f'<td>{stats["total_tests"]}</td>')
+        html.append(f'<td>{stats["total_results"]}</td>')
+        html.append(f'<td>{stats["passed"]}</td>')
+        html.append(f'<td>{stats["failed"]}</td>')
+        html.append(f'<td class="pass-rate {pass_rate_class}">{stats["pass_rate"]}%</td>')
+        html.append(f'<td><a href="results_{escape(variant_id)}.html">View Table</a></td>')
+        html.append('</tr>')
+    
+    html.append('</tbody>')
+    html.append('</table>')
+    html.append('</body>')
+    html.append('</html>')
+    
+    # Write index file
+    index_file = output_dir / "results_index.html"
+    index_file.write_text('\n'.join(html), encoding='utf-8')
+    
+    return index_file
 
 
 def create_table_rich(results_data: Dict):
