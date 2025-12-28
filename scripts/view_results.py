@@ -883,8 +883,15 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
+  # Generate single table (backward compatible)
   %(prog)s results.json
   %(prog)s results.json --output results_table.html
+  
+  # Generate separate tables per variant
+  %(prog)s results.json --output-dir output/
+  
+  # Generate table for specific variant only
+  %(prog)s results.json --output-dir output/ --variant v2_sha256_hex
         """
     )
     parser.add_argument(
@@ -895,10 +902,32 @@ Examples:
     parser.add_argument(
         '--output', '-o',
         type=str,
-        help='Output HTML file (default: results.html in same directory as input)'
+        help='Output HTML file (default: results.html in same directory as input). '
+             'Mutually exclusive with --output-dir.'
+    )
+    parser.add_argument(
+        '--output-dir', '-d',
+        type=str,
+        help='Output directory for variant tables (generates separate table per variant). '
+             'Mutually exclusive with --output.'
+    )
+    parser.add_argument(
+        '--variant',
+        type=str,
+        help='Generate table for specific variant only (e.g., v1_sha1_hex, v2_sha256_hex). '
+             'Requires --output-dir.'
     )
     
     args = parser.parse_args()
+    
+    # Validate arguments
+    if args.output and args.output_dir:
+        print("Error: --output and --output-dir are mutually exclusive", file=sys.stderr)
+        sys.exit(1)
+    
+    if args.variant and not args.output_dir:
+        print("Error: --variant requires --output-dir", file=sys.stderr)
+        sys.exit(1)
     
     # Read results file
     results_path = Path(args.results_file)
@@ -916,20 +945,46 @@ Examples:
         print(f"Error reading results file: {e}", file=sys.stderr)
         sys.exit(1)
     
-    # Generate HTML table
-    html_content = create_html_table(results_data)
+    # Initialize registry
+    registry = VariantRegistry()
     
-    if args.output:
-        output_path = Path(args.output)
-        with open(output_path, 'w', encoding='utf-8') as f:
-            f.write(html_content)
-        print(f"HTML table written to: {output_path}", file=sys.stderr)
+    # Generate tables based on mode
+    if args.output_dir:
+        # Variant-based generation mode
+        output_dir = Path(args.output_dir)
+        output_dir.mkdir(parents=True, exist_ok=True)
+        
+        if args.variant:
+            # Generate single variant table
+            try:
+                output_file = generate_table_for_variant(
+                    results_data, args.variant, output_dir, registry
+                )
+                print(f"HTML table written to: {output_file}", file=sys.stderr)
+            except ValueError as e:
+                print(f"Error: {e}", file=sys.stderr)
+                sys.exit(1)
+        else:
+            # Generate all variant tables
+            output_files = generate_all_tables(results_data, output_dir, registry)
+            print(f"Generated {len(output_files)} file(s):", file=sys.stderr)
+            for output_file in output_files:
+                print(f"  - {output_file}", file=sys.stderr)
     else:
-        # Default to results.html if no output specified
-        default_output = results_path.with_suffix('.html')
-        with open(default_output, 'w', encoding='utf-8') as f:
-            f.write(html_content)
-        print(f"HTML table written to: {default_output}", file=sys.stderr)
+        # Legacy single-table mode (backward compatible)
+        html_content = create_html_table(results_data)
+        
+        if args.output:
+            output_path = Path(args.output)
+            with open(output_path, 'w', encoding='utf-8') as f:
+                f.write(html_content)
+            print(f"HTML table written to: {output_path}", file=sys.stderr)
+        else:
+            # Default to results.html if no output specified
+            default_output = results_path.with_suffix('.html')
+            with open(default_output, 'w', encoding='utf-8') as f:
+                f.write(html_content)
+            print(f"HTML table written to: {default_output}", file=sys.stderr)
 
 
 if __name__ == '__main__':
