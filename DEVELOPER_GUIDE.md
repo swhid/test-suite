@@ -360,6 +360,96 @@ To compute expected SWHIDs:
 swh identify payloads/content/hello.txt
 ```
 
+## Testing SWHID v2 with SHA256
+
+The harness supports testing SWHID v2 with SHA256 hash functions alongside v1 tests.
+
+### Generating Expected SHA256 Results
+
+To generate expected SHA256 SWHID results from Git:
+
+```bash
+python3 tools/generate_sha256_expected.py config.yaml
+```
+
+This script:
+- Creates SHA256 Git repositories for each payload
+- Computes Git SHA256 object hashes (blobs, trees, commits, tags)
+- Adds `expected_swhid_sha256` fields to `config.yaml`
+- Preserves existing `expected_swhid` (v1) values
+
+The script supports:
+- Content objects (files)
+- Directory objects (directories with files)
+- Revision objects (Git commits)
+- Release objects (Git annotated tags)
+- Tarball extraction for git-repository payloads
+
+**Note**: Snapshot objects are excluded as Git doesn't support snapshot object format.
+
+### Configuring v2 Testing
+
+In `config.yaml`, add `expected_swhid_sha256` for payloads that support v2:
+
+```yaml
+payloads:
+  content:
+  - name: hello_world
+    path: payloads/content/hello.txt
+    expected_swhid: swh:1:cnt:...  # v1 (SHA1)
+    expected_swhid_sha256: swh:2:cnt:...  # v2 (SHA256)
+```
+
+Optional per-payload configuration:
+
+```yaml
+  - name: test_v2_only
+    path: payloads/content/test.txt
+    expected_swhid_sha256: swh:2:cnt:...
+    rust_config:
+      version: 2
+      hash: sha256
+```
+
+### Running v2 Tests
+
+**Run v1 tests (default)**:
+```bash
+swhid-harness --impl rust --category content
+```
+
+**Run v2 tests only**:
+```bash
+swhid-harness --impl rust --version 2 --hash sha256 --category content
+```
+
+**Run both v1 and v2 tests**:
+```bash
+swhid-harness --impl rust --test-both-versions --category content
+```
+
+This runs both versions when both `expected_swhid` and `expected_swhid_sha256` are present.
+
+### CLI Flags
+
+- `--version {1,2}`: Override SWHID version (overrides config)
+- `--hash {sha1,sha256}`: Override hash algorithm (overrides config)
+- `--test-both-versions`: Run both v1 and v2 when both expected values present
+
+### Version Determination Priority
+
+The harness determines which version(s) to test using this priority:
+
+1. **CLI flags** (`--version`, `--hash`) - highest priority
+2. **Payload rust_config** (per-payload config in `config.yaml`)
+3. **Expected values presence** (`expected_swhid_sha256` indicates v2 support)
+4. **Default** - v1 only
+
+### Implementation Support
+
+Currently, the Rust implementation supports v2/SHA256 via `--version 2 --hash sha256` flags
+passed to the `swhid` binary. Other implementations will be extended as needed.
+
 ## Getting Help
 
 - Check existing implementations in `implementations/` for examples
