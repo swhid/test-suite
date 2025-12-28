@@ -668,7 +668,10 @@ class SwhidHarness:
     
     def run_tests(self, implementations: Optional[List[str]] = None,
                   categories: Optional[List[str]] = None,
-                  payloads: Optional[List[str]] = None) -> List[ComparisonResult]:
+                  payloads: Optional[List[str]] = None,
+                  version: Optional[int] = None,
+                  hash_algo: Optional[str] = None,
+                  test_both_versions: bool = False) -> List[ComparisonResult]:
         """Run tests for specified implementations and categories."""
         # Load implementations
         self.implementations = self._load_implementations(implementations)
