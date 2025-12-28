@@ -1166,32 +1166,41 @@ class SwhidHarness:
                             context={}
                         )
                         swhid = None
-                elif result.expected_swhid and test_result.swhid != result.expected_swhid:
-                    status = "FAIL"
-                    # Create structured diff
-                    diff = [
-                        DiffEntry(
-                            path="/swhid",
-                            expected=result.expected_swhid,
-                            actual=test_result.swhid,
-                            category="value_mismatch"
-                        )
-                    ]
-                    error = ErrorInfo(
-                        code="MISMATCH_ERROR",
-                        subtype="swhid",
-                        message="SWHID mismatch",
-                        context={
-                            "got": test_result.swhid,
-                            "expected": result.expected_swhid
-                        },
-                        diff=diff
-                    )
-                    swhid = test_result.swhid
                 else:
-                    status = "PASS"
-                    error = None
-                    swhid = test_result.swhid
+                    # Determine which expected value to use based on result version
+                    expected_swhid_to_check = None
+                    if test_result.version == 2:
+                        expected_swhid_to_check = result.expected_swhid_sha256
+                    else:
+                        expected_swhid_to_check = result.expected_swhid
+                    
+                    # Check against appropriate expected value
+                    if expected_swhid_to_check and test_result.swhid != expected_swhid_to_check:
+                        status = "FAIL"
+                        # Create structured diff
+                        diff = [
+                            DiffEntry(
+                                path="/swhid",
+                                expected=expected_swhid_to_check,
+                                actual=test_result.swhid,
+                                category="value_mismatch"
+                            )
+                        ]
+                        error = ErrorInfo(
+                            code="MISMATCH_ERROR",
+                            subtype="swhid",
+                            message="SWHID mismatch",
+                            context={
+                                "got": test_result.swhid,
+                                "expected": expected_swhid_to_check
+                            },
+                            diff=diff
+                        )
+                        swhid = test_result.swhid
+                    else:
+                        status = "PASS"
+                        error = None
+                        swhid = test_result.swhid
                 
                 # Create metrics
                 metrics = Metrics(
