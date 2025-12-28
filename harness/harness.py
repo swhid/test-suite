@@ -729,13 +729,15 @@ class SwhidHarness:
                     test_hash = hash_algo or payload_hash or "sha256"
                 else:
                     # Determine from config/expected values
+                    # Default behavior: test v1 only (backward compatible)
+                    # Only test v2 if explicitly configured or both expected values present
                     test_versions = []
-                    if expected_swhid_sha256 or payload_version == 2:
-                        test_versions.append(2)
-                    if expected_swhid or payload_version != 2:
-                        test_versions.append(1)
+                    if expected_swhid:
+                        test_versions.append(1)  # Always test v1 if expected_swhid present
+                    if expected_swhid_sha256 and (payload_version == 2 or test_both_versions):
+                        test_versions.append(2)  # Test v2 only if explicitly configured
                     
-                    # If no explicit version config, default to v1 only
+                    # If no explicit version config and no expected values, default to v1 only
                     if not test_versions:
                         test_versions = [1]
                     

@@ -49,7 +49,8 @@ class Implementation(SwhidImplementation):
         )
     
     def compute_swhid(self, payload_path: str, obj_type: Optional[str] = None,
-                     commit: Optional[str] = None, tag: Optional[str] = None) -> str:
+                     commit: Optional[str] = None, tag: Optional[str] = None,
+                     version: Optional[int] = None, hash_algo: Optional[str] = None) -> str:
         """Compute SWHID using Git's hashing algorithm via dulwich."""
         if not DULWICH_AVAILABLE:
             raise RuntimeError("dulwich library not available")
