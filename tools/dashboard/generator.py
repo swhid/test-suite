@@ -160,6 +160,80 @@ class DashboardGenerator:
         
         context['platform_breakdown'] = '\n'.join(platform_breakdown_html) if platform_breakdown_html else ''
         
+        # Generate implementation x platform matrix
+        impl_platform_matrix = data.get('impl_platform_matrix', {})
+        implementations = data.get('implementations', [])
+        platforms = sorted(set(platform_stats.keys())) if platform_stats else []
+        
+        matrix_header = []
+        matrix_rows = []
+        if impl_platform_matrix and implementations and platforms:
+            # Header row
+            header_cells = ['<th>Implementation</th>']
+            for platform in platforms:
+                header_cells.append(f'<th>{platform}</th>')
+            matrix_header.append(f'<tr>{"".join(header_cells)}</tr>')
+            
+            # Data rows
+            for impl_id in sorted(implementations):
+                row_cells = [f'<td><strong>{impl_id}</strong></td>']
+                for platform in platforms:
+                    cell_data = impl_platform_matrix.get(impl_id, {}).get(platform, {})
+                    passed = cell_data.get('passed', 0)
+                    failed = cell_data.get('failed', 0)
+                    skipped = cell_data.get('skipped', 0)
+                    total = cell_data.get('total', 0)
+                    pass_rate = cell_data.get('pass_rate', 0.0)
+                    fail_rate = cell_data.get('fail_rate', 0.0)
+                    skip_rate = cell_data.get('skip_rate', 0.0)
+                    
+                    # Determine cell class based on pass rate
+                    if total == 0:
+                        cell_class = 'matrix-cell-empty'
+                        cell_content = '<span class="text-muted">—</span>'
+                    elif pass_rate >= 80:
+                        cell_class = 'matrix-cell-success'
+                        cell_content = f'''
+                            <div class="matrix-cell-content">
+                                <div class="matrix-pass">✓ {pass_rate:.1f}%</div>
+                                <div class="matrix-details">
+                                    <small>{passed}/{total} pass</small>
+                                    {f'<small class="matrix-fail">, {failed} fail</small>' if failed > 0 else ''}
+                                    {f'<small class="matrix-skip">, {skipped} skip</small>' if skipped > 0 else ''}
+                                </div>
+                            </div>
+                        '''
+                    elif pass_rate >= 50:
+                        cell_class = 'matrix-cell-warning'
+                        cell_content = f'''
+                            <div class="matrix-cell-content">
+                                <div class="matrix-pass">✓ {pass_rate:.1f}%</div>
+                                <div class="matrix-details">
+                                    <small>{passed}/{total} pass</small>
+                                    {f'<small class="matrix-fail">, {failed} fail</small>' if failed > 0 else ''}
+                                    {f'<small class="matrix-skip">, {skipped} skip</small>' if skipped > 0 else ''}
+                                </div>
+                            </div>
+                        '''
+                    else:
+                        cell_class = 'matrix-cell-danger'
+                        cell_content = f'''
+                            <div class="matrix-cell-content">
+                                <div class="matrix-pass">✓ {pass_rate:.1f}%</div>
+                                <div class="matrix-details">
+                                    <small>{passed}/{total} pass</small>
+                                    {f'<small class="matrix-fail">, {failed} fail</small>' if failed > 0 else ''}
+                                    {f'<small class="matrix-skip">, {skipped} skip</small>' if skipped > 0 else ''}
+                                </div>
+                            </div>
+                        '''
+                    
+                    row_cells.append(f'<td class="{cell_class}">{cell_content}</td>')
+                matrix_rows.append(f'<tr>{"".join(row_cells)}</tr>')
+        
+        context['matrix_header'] = '\n'.join(matrix_header) if matrix_header else ''
+        context['matrix_rows'] = '\n'.join(matrix_rows) if matrix_rows else '<tr><td colspan="100%">No data available</td></tr>'
+        
         # Generate runs table rows
         runs_rows = []
         for run in context['runs']:

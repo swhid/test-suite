@@ -146,6 +146,92 @@ nav a:hover {
     font-size: 0.9em;
 }
 
+/* Matrix Table Styles */
+.matrix {
+    margin-top: 30px;
+}
+
+.matrix-description {
+    color: #586069;
+    font-size: 0.9em;
+    margin-bottom: 15px;
+}
+
+.matrix-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 10px;
+}
+
+.matrix-table th,
+.matrix-table td {
+    padding: 12px;
+    text-align: left;
+    border: 1px solid var(--border-color);
+}
+
+.matrix-table th {
+    background: #f6f8fa;
+    font-weight: 600;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+.matrix-table td:first-child {
+    font-weight: 600;
+    background: #fafbfc;
+}
+
+.matrix-table tr:hover {
+    background: #f6f8fa;
+}
+
+.matrix-cell-content {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.matrix-pass {
+    font-weight: 600;
+    color: var(--success-color);
+}
+
+.matrix-details {
+    font-size: 0.85em;
+    color: #586069;
+}
+
+.matrix-details .matrix-fail {
+    color: var(--danger-color);
+}
+
+.matrix-details .matrix-skip {
+    color: var(--warning-color);
+}
+
+.matrix-cell-success {
+    background: #d4edda;
+    border-left: 3px solid var(--success-color);
+}
+
+.matrix-cell-warning {
+    background: #fff3cd;
+    border-left: 3px solid var(--warning-color);
+}
+
+.matrix-cell-danger {
+    background: #f8d7da;
+    border-left: 3px solid var(--danger-color);
+}
+
+.matrix-cell-empty {
+    background: #f6f8fa;
+    color: #586069;
+    text-align: center;
+}
+
 .badge {
     display: inline-block;
     padding: 4px 8px;

@@ -126,6 +126,51 @@ def create_index_data(results_files: List[Dict[str, Any]]) -> Dict[str, Any]:
             stats["fail_rate"] = 0.0
             stats["skip_rate"] = 0.0
     
+    # Build implementation x platform matrix
+    # Matrix structure: {implementation_id: {platform: {passed, failed, skipped, total, pass_rate, fail_rate, skip_rate}}}
+    impl_platform_matrix = {}
+    for results in results_files:
+        runner_info = results.get("run", {}).get("runner", {})
+        platform_name = normalize_platform_name(runner_info.get("os", "Unknown"))
+        
+        # Count results per implementation for this platform
+        for impl in results["implementations"]:
+            impl_id = impl["id"]
+            if impl_id not in impl_platform_matrix:
+                impl_platform_matrix[impl_id] = {}
+            
+            if platform_name not in impl_platform_matrix[impl_id]:
+                impl_platform_matrix[impl_id][platform_name] = {
+                    "passed": 0,
+                    "failed": 0,
+                    "skipped": 0,
+                    "total": 0
+                }
+            
+            # Count results for this implementation
+            for test in results["tests"]:
+                for result in test["results"]:
+                    if result["implementation"] == impl_id:
+                        impl_platform_matrix[impl_id][platform_name]["total"] += 1
+                        if result["status"] == "PASS":
+                            impl_platform_matrix[impl_id][platform_name]["passed"] += 1
+                        elif result["status"] == "FAIL":
+                            impl_platform_matrix[impl_id][platform_name]["failed"] += 1
+                        elif result["status"] == "SKIPPED":
+                            impl_platform_matrix[impl_id][platform_name]["skipped"] += 1
+    
+    # Calculate rates for each cell in the matrix
+    for impl_id, platforms in impl_platform_matrix.items():
+        for platform, stats in platforms.items():
+            if stats["total"] > 0:
+                stats["pass_rate"] = round(stats["passed"] / stats["total"] * 100, 2)
+                stats["fail_rate"] = round(stats["failed"] / stats["total"] * 100, 2)
+                stats["skip_rate"] = round(stats["skipped"] / stats["total"] * 100, 2)
+            else:
+                stats["pass_rate"] = 0.0
+                stats["fail_rate"] = 0.0
+                stats["skip_rate"] = 0.0
+    
     total_results = total_tests * len(implementations) if implementations else 0
     overall_fail_rate = round(total_failed / total_results * 100, 2) if total_results > 0 else 0
     overall_skip_rate = round(total_skipped / total_results * 100, 2) if total_results > 0 else 0
@@ -143,6 +188,7 @@ def create_index_data(results_files: List[Dict[str, Any]]) -> Dict[str, Any]:
         "overall_skip_rate": overall_skip_rate,
         "implementations": sorted(list(implementations)),
         "platform_stats": platform_stats,
+        "impl_platform_matrix": impl_platform_matrix,
         "runs": runs
     }
 
