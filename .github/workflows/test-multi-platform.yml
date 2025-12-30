@@ -18,7 +18,6 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
       
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -237,7 +236,6 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0  # Full history for commit info
-          token: ${{ secrets.GITHUB_TOKEN }}
       
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -305,7 +303,7 @@ jobs:
           toolchain: stable
         continue-on-error: true
       
-      - name: Setup SSH for private repository access
+      - name: Setup SSH for private repository access (optional)
         shell: bash
         run: |
           mkdir -p ~/.ssh
@@ -313,9 +311,9 @@ jobs:
             echo "${{ secrets.SWHID_RS_SSH_KEY }}" > ~/.ssh/id_rsa
             chmod 600 ~/.ssh/id_rsa
             ssh-keyscan github.com >> ~/.ssh/known_hosts 2>/dev/null
-            echo "SSH key configured for private repository access"
+            echo "SSH key configured for repository access"
           else
-            echo "No SSH key provided - will try HTTPS with token if available"
+            echo "No SSH key provided - using public HTTPS access"
           fi
         continue-on-error: true
       
@@ -330,7 +328,7 @@ jobs:
           # Try to clone the swhid-rs repository
           if [ -n "$SWHID_RS_REPO" ]; then
             echo "Attempting to clone swhid-rs from $SWHID_RS_REPO"
-            # Use HTTPS with token if available (for private repos)
+            # Use HTTPS with token if available (for private repos, or public access if no token)
             if [[ "$SWHID_RS_REPO" == https://* ]]; then
               # Force HTTPS by disabling SSH and avoiding system Git configs
               echo "=== Debug: Git configuration before clone ==="
@@ -352,17 +350,17 @@ jobs:
               export GIT_TERMINAL_PROMPT=0
               
               if [ -n "$SWHID_RS_TOKEN" ]; then
-                # Use dedicated token for private repo access
+                # Use dedicated token for repository access (if needed for private repos)
                 # Construct URL properly: extract domain and path, then rebuild with token
                 REPO_URL="https://${SWHID_RS_TOKEN}@${SWHID_RS_REPO#https://}"
-                echo "Using token for private repository access"
+                echo "Using token for repository access"
                 echo "Repository URL (masked): https://***@${SWHID_RS_REPO#https://}"
                 echo "Attempting clone with explicit HTTPS..."
                 # Unset GIT_SSH_COMMAND (don't set to empty string) and force HTTPS
                 (unset GIT_SSH_COMMAND; unset GIT_SSH; GIT_CONFIG_NOSYSTEM=1 git clone "$REPO_URL" /tmp/swhid-rs 2>&1) | tee /tmp/swhid-rs-clone.log
                 CLONE_EXIT_CODE=${PIPESTATUS[0]}
               elif [ -n "${{ secrets.GITHUB_TOKEN }}" ]; then
-                # Fallback to GITHUB_TOKEN if available
+                # Fallback to GITHUB_TOKEN if available (for private repos)
                 GITHUB_TOKEN_VALUE="${{ secrets.GITHUB_TOKEN }}"
                 REPO_URL="https://${GITHUB_TOKEN_VALUE}@${SWHID_RS_REPO#https://}"
                 echo "Using GITHUB_TOKEN for repository access"
@@ -371,8 +369,8 @@ jobs:
                 (unset GIT_SSH_COMMAND; unset GIT_SSH; GIT_CONFIG_NOSYSTEM=1 git clone "$REPO_URL" /tmp/swhid-rs 2>&1) | tee /tmp/swhid-rs-clone.log
                 CLONE_EXIT_CODE=${PIPESTATUS[0]}
               else
-                # Try public access (will fail for private repos)
-                echo "No token available, attempting public access"
+                # Use public access (works for public repositories)
+                echo "No token available, using public HTTPS access"
                 echo "Attempting clone with explicit HTTPS..."
                 (unset GIT_SSH_COMMAND; unset GIT_SSH; GIT_CONFIG_NOSYSTEM=1 git clone "$SWHID_RS_REPO" /tmp/swhid-rs 2>&1) | tee /tmp/swhid-rs-clone.log
                 CLONE_EXIT_CODE=${PIPESTATUS[0]}
@@ -492,7 +490,6 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
       
       - name: Download all artifacts
         uses: actions/download-artifact@v4
@@ -627,8 +624,6 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
       
       - name: Download artifacts
         uses: actions/download-artifact@v4
