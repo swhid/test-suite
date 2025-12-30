@@ -141,8 +141,18 @@ class Implementation(SwhidImplementation):
         return binary_path
     
     def compute_swhid(self, payload_path: str, obj_type: Optional[str] = None,
-                     commit: Optional[str] = None, tag: Optional[str] = None) -> str:
-        """Compute SWHID for a payload using the Rust implementation."""
+                     commit: Optional[str] = None, tag: Optional[str] = None,
+                     version: Optional[int] = None, hash_algo: Optional[str] = None) -> str:
+        """Compute SWHID for a payload using the Rust implementation.
+        
+        Args:
+            payload_path: Path to the payload
+            obj_type: Object type (content, directory, revision, release, snapshot)
+            commit: Optional commit SHA for revision SWHIDs
+            tag: Optional tag name for release SWHIDs
+            version: Optional SWHID version (1 for v1, 2 for v2). Defaults to 1.
+            hash_algo: Optional hash algorithm ('sha1' or 'sha256'). Defaults to 'sha1'.
+        """
         # Convert to absolute path
         payload_path = os.path.abspath(payload_path)
         
@@ -166,6 +176,12 @@ class Implementation(SwhidImplementation):
         # Build the command based on object type
         # Run the binary directly instead of cargo run
         cmd = [binary_path]
+        
+        # Add version/hash flags if specified
+        if version == 2:
+            cmd.extend(["--version", "2"])
+        if hash_algo == "sha256":
+            cmd.extend(["--hash", "sha256"])
         
         if obj_type == "content":
             # Try both formats to support both experimental and published versions
