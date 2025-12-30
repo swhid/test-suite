@@ -81,27 +81,27 @@ payloads:
     expected_swhid: swh:1:dir:d564d0bc3dd917926892c55e3706cc116d5b165e
     name: empty_dir
     path: payloads/directory/empty/
-    expected_swhid_sha256: swh:2:dir:64080d6efef3dd8cb00aa9bdd83e1a952b0b7c85be2d673b7d13d480a7bfd9b9
+    expected_swhid_sha256: swh:2:dir:de6f8a1c4a2e6e2d8fc8b81fd7cb477ab5f58af185b8bb57046052f170fbb222
   - description: Directory with files
     expected_swhid: swh:1:dir:3f09c252c646f8ac591d60e02e41ab09274de7c1
     name: simple_dir
     path: payloads/directory/simple/
-    expected_swhid_sha256: swh:2:dir:814594dae998b66e58127c045c268df617d3d08e78dceb9159c20a111a1d3412
+    expected_swhid_sha256: swh:2:dir:8b6ff16ed274bf60326d654c3f5bca679a7ced5542be29713bb67b36a1237ac2
   - description: Directory with subdirectories
     expected_swhid: swh:1:dir:0bbbf9c7f265450b510251ff215a729f062a763a
     name: nested_dir
     path: payloads/directory/nested/
-    expected_swhid_sha256: swh:2:dir:a35d430aee0c7caf052f0e16e9a1f48c80583a3aab4affc9036f6fd276b35ac9
+    expected_swhid_sha256: swh:2:dir:741f4566b80fb94c13dee7e1c10d934f49c4f3bf03b1fc8b2ed6816c97ca9002
   - description: Directory with symlinks
     expected_swhid: swh:1:dir:98e24c042d1ed01420c09c873d8b5e4e50c400bf
     name: symlink_dir
     path: payloads/directory/symlink/
-    expected_swhid_sha256: swh:2:dir:077f2be993f9daae6c3e78ae1be94741aec2f5fc81de161a8303d486d8165765
+    expected_swhid_sha256: swh:2:dir:977e5f1ebb683f9006fb828c1a5e8fe0155a7211694d123db2a591d640460ad2
   - description: Directory with special permissions
     expected_swhid: swh:1:dir:bc3f7f74e7aa5fcb859eaaa3949d5cae29c28ca4
     name: permissions_dir
     path: payloads/directory/permissions/
-    expected_swhid_sha256: swh:2:dir:177f89c19f083cccff8b2311594235a140c53fca8678075f0a67ab37305988e1
+    expected_swhid_sha256: swh:2:dir:702b56cb3d129536c6ea6f77eca4bf6a171374774a27a3c638c8439bc4728f7e
   directory/edge_cases:
   - description: Directory with entries in alphabetical order (tests entry ordering)
     expected_swhid: swh:1:dir:367667c0665514d6e9aacf236eca852ae92c0cf6
