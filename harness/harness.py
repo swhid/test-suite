@@ -216,7 +216,8 @@ class SwhidHarness:
     
     def _run_single_test(self, implementation: SwhidImplementation, payload_path: str, 
                          payload_name: str, category: Optional[str] = None, 
-                         commit: Optional[str] = None, tag: Optional[str] = None) -> SwhidTestResult:
+                         commit: Optional[str] = None, tag: Optional[str] = None,
+                         version: Optional[int] = None, hash_algo: Optional[str] = None) -> SwhidTestResult:
         """Run a single test for one implementation."""
         start_time = time.time()
         
@@ -261,7 +262,8 @@ class SwhidHarness:
                     swhid=None,
                     error=f"Object type '{obj_type}' (SWHID code '{swhid_code}') not supported by implementation",
                     duration=0.0,
-                    success=False
+                    success=False,
+                    version=version if version is not None else 1
                 )
             
             # Resolve commit reference to full SHA if needed (for branch names, tags, short SHAs)
@@ -272,8 +274,26 @@ class SwhidHarness:
             
             # For revision/release, pass commit/tag information to implementations
             # Use resolved commit (full SHA) instead of original commit reference
-            swhid = implementation.compute_swhid(actual_payload_path, obj_type, commit=resolved_commit, tag=tag)
+            # Pass version/hash config if provided
+            compute_kwargs = {"commit": resolved_commit, "tag": tag}
+            if version is not None:
+                compute_kwargs["version"] = version
+            if hash_algo is not None:
+                compute_kwargs["hash_algo"] = hash_algo
+            
+            swhid = implementation.compute_swhid(actual_payload_path, obj_type, **compute_kwargs)
             duration = time.time() - start_time
+            
+            # Determine SWHID version from result
+            # Priority: explicit version parameter > SWHID string detection > default to 1
+            if version is not None:
+                result_version = version
+            elif swhid and swhid.startswith("swh:2:"):
+                result_version = 2
+            elif swhid and swhid.startswith("swh:1:"):
+                result_version = 1
+            else:
+                result_version = 1  # Default fallback
             
             return SwhidTestResult(
                 payload_name=payload_name,
@@ -282,7 +302,8 @@ class SwhidHarness:
                 swhid=swhid,
                 error=None,
                 duration=duration,
-                success=True
+                success=True,
+                version=result_version
             )
             
         except Exception as e:
@@ -301,7 +322,8 @@ class SwhidHarness:
                     swhid=None,
                     error=f"Object type not supported: {error_str}",
                     duration=0.0,
-                    success=False
+                    success=False,
+                    version=version if version is not None else 1
                 )
             return SwhidTestResult(
                 payload_name=payload_name,
@@ -310,7 +332,8 @@ class SwhidHarness:
                 swhid=None,
                 error=error_str,
                 duration=duration,
-                success=False
+                success=False,
+                version=version if version is not None else 1
             )
     
     def _discover_git_tests(self, repo_path: str, base_name: str, 
@@ -377,7 +400,7 @@ class SwhidHarness:
                     
                     # Compare results (no expected SWHID for discovered tests)
                     expected_swhid = expected_branches.get(branch)
-                    comparison = self._compare_results(test_name, actual_repo_path, results, expected_swhid=expected_swhid)
+                    comparison = self._compare_results(test_name, actual_repo_path, results, expected_swhid=expected_swhid, expected_swhid_sha256=None)
                     all_results.append(comparison)
                     
                     # Log results similar to regular tests
@@ -499,7 +522,7 @@ class SwhidHarness:
                     
                     # Compare results (no expected SWHID for discovered tests)
                     expected_swhid = expected_tags.get(tag)
-                    comparison = self._compare_results(test_name, actual_repo_path, results, expected_swhid=expected_swhid)
+                    comparison = self._compare_results(test_name, actual_repo_path, results, expected_swhid=expected_swhid, expected_swhid_sha256=None)
                     all_results.append(comparison)
                     
                     # Log results similar to regular tests
@@ -575,6 +598,7 @@ class SwhidHarness:
     def _compare_results(self, payload_name: str, payload_path: str,
                         results: Dict[str, SwhidTestResult], 
                         expected_swhid: Optional[str] = None,
+                        expected_swhid_sha256: Optional[str] = None,
                         expected_error: Optional[str] = None) -> ComparisonResult:
         """Compare results across implementations."""
         supported_results = {
@@ -605,7 +629,8 @@ class SwhidHarness:
                     payload_path=payload_path,
                     results=results,
                     all_match=True,
-                    expected_swhid=expected_swhid
+                    expected_swhid=expected_swhid,
+                    expected_swhid_sha256=expected_swhid_sha256
                 )
         
         # Check if all implementations succeeded
@@ -617,30 +642,44 @@ class SwhidHarness:
                 payload_path=payload_path,
                 results=results,
                 all_match=False,
-                expected_swhid=expected_swhid
+                expected_swhid=expected_swhid,
+                expected_swhid_sha256=expected_swhid_sha256
             )
         
-        # Get all SWHIDs
-        swhids = [r.swhid for r in supported_results.values() if r.swhid]
+        # Get all SWHIDs, grouped by version
+        v1_swhids = [r.swhid for r in supported_results.values() 
+                     if r.swhid and r.version == 1]
+        v2_swhids = [r.swhid for r in supported_results.values() 
+                     if r.swhid and r.version == 2]
         
-        # Check if all SWHIDs match
-        all_match = len(set(swhids)) == 1 if swhids else False
+        # Check if all SWHIDs match within each version group
+        v1_match = len(set(v1_swhids)) == 1 if v1_swhids else True  # True if no v1 results
+        v2_match = len(set(v2_swhids)) == 1 if v2_swhids else True  # True if no v2 results
         
-        # Check against expected SWHID if provided
-        if expected_swhid and all_match:
-            all_match = swhids[0] == expected_swhid
+        all_match = v1_match and v2_match
+        
+        # Check against expected SWHIDs if provided
+        if all_match:
+            if v1_swhids and expected_swhid:
+                all_match = v1_swhids[0] == expected_swhid
+            if v2_swhids and expected_swhid_sha256:
+                all_match = all_match and (v2_swhids[0] == expected_swhid_sha256)
         
         return ComparisonResult(
             payload_name=payload_name,
             payload_path=payload_path,
             results=results,
             all_match=all_match,
-            expected_swhid=expected_swhid
+            expected_swhid=expected_swhid,
+            expected_swhid_sha256=expected_swhid_sha256
         )
     
     def run_tests(self, implementations: Optional[List[str]] = None,
                   categories: Optional[List[str]] = None,
-                  payloads: Optional[List[str]] = None) -> List[ComparisonResult]:
+                  payloads: Optional[List[str]] = None,
+                  version: Optional[int] = None,
+                  hash_algo: Optional[str] = None,
+                  test_both_versions: bool = False) -> List[ComparisonResult]:
         """Run tests for specified implementations and categories."""
         # Load implementations
         self.implementations = self._load_implementations(implementations)
@@ -679,6 +718,38 @@ class SwhidHarness:
                     payload_path = os.path.join(config_dir, payload_path)
                 payload_name = payload["name"]
                 expected_swhid = payload.get("expected_swhid")
+                expected_swhid_sha256 = payload.get("expected_swhid_sha256")
+                
+                # Determine which version(s) to test
+                # Priority: CLI flags > payload rust_config > expected values presence
+                rust_config = payload.get("rust_config", {})
+                payload_version = rust_config.get("version")
+                payload_hash = rust_config.get("hash")
+                
+                # CLI flags override config
+                if version is not None:
+                    # CLI version specified - use it
+                    test_versions = [version]
+                    test_hash = hash_algo or (payload_hash if version == 2 else None)
+                elif test_both_versions and expected_swhid and expected_swhid_sha256:
+                    # Test both versions if both expected values present and flag set
+                    test_versions = [1, 2]
+                    test_hash = hash_algo or payload_hash or "sha256"
+                else:
+                    # Determine from config/expected values
+                    # Default behavior: test v1 only (backward compatible)
+                    # Only test v2 if explicitly configured or both expected values present
+                    test_versions = []
+                    if expected_swhid:
+                        test_versions.append(1)  # Always test v1 if expected_swhid present
+                    if expected_swhid_sha256 and (payload_version == 2 or test_both_versions):
+                        test_versions.append(2)  # Test v2 only if explicitly configured
+                    
+                    # If no explicit version config and no expected values, default to v1 only
+                    if not test_versions:
+                        test_versions = [1]
+                    
+                    test_hash = hash_algo or payload_hash
                 
                 # Ensure git payloads exist by creating synthetic repos on-the-fly
                 # For synthetic repos, always recreate to ensure consistency
@@ -738,12 +809,14 @@ class SwhidHarness:
                         )
                     # Create comparison result with SKIPPED status
                     expected_error = payload.get("expected_error")
+                    expected_swhid_sha256 = payload.get("expected_swhid_sha256")
                     comparison = ComparisonResult(
                         payload_name=payload_name,
                         payload_path=payload_path,
                         results=skipped_results,
                         all_match=False,  # SKIPPED is not a match
-                        expected_swhid=expected_swhid
+                        expected_swhid=expected_swhid,
+                        expected_swhid_sha256=expected_swhid_sha256
                     )
                     all_results.append(comparison)
                     continue
@@ -766,25 +839,51 @@ class SwhidHarness:
                 commit = payload.get("commit")
                 tag = payload.get("tag")
                 
-                # Run tests for all implementations
+                # Run tests for all implementations and all versions
                 results = {}
                 with ThreadPoolExecutor(max_workers=self.config["settings"]["parallel_tests"]) as executor:
-                    future_to_impl = {
-                        executor.submit(self._run_single_test, impl, payload_path, payload_name, category, commit=commit, tag=tag): impl
-                        for impl in self.implementations.values()
-                    }
+                    futures = []
+                    for impl in self.implementations.values():
+                        for test_version in test_versions:
+                            # Determine hash algorithm for this version
+                            version_hash = None
+                            if test_version == 2:
+                                version_hash = test_hash or "sha256"
+                            
+                            future = executor.submit(
+                                self._run_single_test,
+                                impl,
+                                payload_path,
+                                payload_name,
+                                category,
+                                commit=commit,
+                                tag=tag,
+                                version=test_version,
+                                hash_algo=version_hash
+                            )
+                            futures.append((future, impl, test_version))
                     
-                    for future in as_completed(future_to_impl):
-                        impl = future_to_impl[future]
+                    for future, impl, test_version in futures:
                         try:
                             result = future.result()
-                            results[impl.get_info().name] = result
+                            # Use a key that includes version to distinguish v1 and v2 results
+                            result_key = f"{impl.get_info().name}"
+                            if len(test_versions) > 1:
+                                result_key = f"{impl.get_info().name}_v{test_version}"
+                            results[result_key] = result
                         except Exception as e:
-                            logger.error(f"Error running test for {impl.get_info().name}: {e}")
+                            logger.error(f"Error running test for {impl.get_info().name} (v{test_version}): {e}")
                 
                 # Compare results
                 expected_error = payload.get("expected_error")
-                comparison = self._compare_results(payload_name, payload_path, results, expected_swhid, expected_error)
+                comparison = self._compare_results(
+                    payload_name,
+                    payload_path,
+                    results,
+                    expected_swhid,
+                    expected_swhid_sha256,
+                    expected_error
+                )
                 all_results.append(comparison)
                 
                 # Log results
@@ -1033,10 +1132,11 @@ class SwhidHarness:
             elif "negative" in payload_path_normalized:
                 category = "negative"
             
-            # Create expected reference
+            # Create expected reference (include both v1 and v2 expected values)
             expected = ExpectedRef(
                 reference_impl="python-swhid",  # Default reference
-                swhid=result.expected_swhid
+                swhid=result.expected_swhid,
+                expected_swhid_sha256=result.expected_swhid_sha256
             )
             
             # Create results for each implementation
@@ -1084,32 +1184,41 @@ class SwhidHarness:
                             context={}
                         )
                         swhid = None
-                elif result.expected_swhid and test_result.swhid != result.expected_swhid:
-                    status = "FAIL"
-                    # Create structured diff
-                    diff = [
-                        DiffEntry(
-                            path="/swhid",
-                            expected=result.expected_swhid,
-                            actual=test_result.swhid,
-                            category="value_mismatch"
-                        )
-                    ]
-                    error = ErrorInfo(
-                        code="MISMATCH_ERROR",
-                        subtype="swhid",
-                        message="SWHID mismatch",
-                        context={
-                            "got": test_result.swhid,
-                            "expected": result.expected_swhid
-                        },
-                        diff=diff
-                    )
-                    swhid = test_result.swhid
                 else:
-                    status = "PASS"
-                    error = None
-                    swhid = test_result.swhid
+                    # Determine which expected value to use based on result version
+                    expected_swhid_to_check = None
+                    if test_result.version == 2:
+                        expected_swhid_to_check = result.expected_swhid_sha256
+                    else:
+                        expected_swhid_to_check = result.expected_swhid
+                    
+                    # Check against appropriate expected value
+                    if expected_swhid_to_check and test_result.swhid != expected_swhid_to_check:
+                        status = "FAIL"
+                        # Create structured diff
+                        diff = [
+                            DiffEntry(
+                                path="/swhid",
+                                expected=expected_swhid_to_check,
+                                actual=test_result.swhid,
+                                category="value_mismatch"
+                            )
+                        ]
+                        error = ErrorInfo(
+                            code="MISMATCH_ERROR",
+                            subtype="swhid",
+                            message="SWHID mismatch",
+                            context={
+                                "got": test_result.swhid,
+                                "expected": expected_swhid_to_check
+                            },
+                            diff=diff
+                        )
+                        swhid = test_result.swhid
+                    else:
+                        status = "PASS"
+                        error = None
+                        swhid = test_result.swhid
                 
                 # Create metrics
                 metrics = Metrics(
@@ -1205,8 +1314,14 @@ class SwhidHarness:
             if statuses == {"SKIPPED"}:
                 fully_skipped += 1
                 for result in results:
-                    impl_stats[result.implementation]["skipped"] += 1
-                    impl_skipped_tests[result.implementation].append(test_case.id)
+                    # Normalize implementation name (strip version suffix)
+                    impl_name_base = result.implementation
+                    if impl_name_base.endswith('_v1') or impl_name_base.endswith('_v2'):
+                        impl_name_base = impl_name_base.rsplit('_', 1)[0]
+                    if impl_name_base not in impl_stats:
+                        impl_stats[impl_name_base] = {"passed": 0, "failed": 0, "skipped": 0}
+                    impl_stats[impl_name_base]["skipped"] += 1
+                    impl_skipped_tests[impl_name_base].append(test_case.id)
             else:
                 # Process each implementation's result
                 all_agree_on_this_test = True
@@ -1226,24 +1341,39 @@ class SwhidHarness:
                 
                 # Count statistics per implementation
                 for result in results:
+                    # Normalize implementation name (strip version suffix for dual-version tests)
+                    impl_name_base = result.implementation
+                    if impl_name_base.endswith('_v1') or impl_name_base.endswith('_v2'):
+                        impl_name_base = impl_name_base.rsplit('_', 1)[0]
+                    
+                    # Ensure normalized name exists in stats
+                    if impl_name_base not in impl_stats:
+                        impl_stats[impl_name_base] = {"passed": 0, "failed": 0, "skipped": 0}
+                    
+                    # Determine which expected value to check based on implementation name
+                    # If implementation name has _v2 suffix, check against v2 expected
+                    check_v2 = result.implementation.endswith('_v2')
+                    expected_to_check = test_case.expected.expected_swhid_sha256 if check_v2 else test_case.expected.swhid
+                    has_expected_for_version = expected_to_check is not None
+                    
                     if result.status == "SKIPPED":
-                        impl_stats[result.implementation]["skipped"] += 1
-                        impl_skipped_tests[result.implementation].append(test_case.id)
+                        impl_stats[impl_name_base]["skipped"] += 1
+                        impl_skipped_tests[impl_name_base].append(test_case.id)
                     elif result.status == "FAIL":
-                        impl_stats[result.implementation]["failed"] += 1
+                        impl_stats[impl_name_base]["failed"] += 1
                         # Always add to failed tests list, regardless of whether expected exists
-                        impl_failed_tests[result.implementation].append(test_case.id)
+                        impl_failed_tests[impl_name_base].append(test_case.id)
                         all_agree_on_this_test = False
                     elif result.status == "PASS":
-                        # Check if it matches expected (if available)
-                        if has_expected and result.swhid != expected_swhid:
+                        # Check if it matches expected (if available for this version)
+                        if has_expected_for_version and result.swhid != expected_to_check:
                             # PASS but wrong SWHID - count as failure
-                            impl_stats[result.implementation]["failed"] += 1
-                            impl_failed_tests[result.implementation].append(test_case.id)
+                            impl_stats[impl_name_base]["failed"] += 1
+                            impl_failed_tests[impl_name_base].append(test_case.id)
                             all_agree_on_this_test = False
                         else:
                             # PASS and matches expected (or no expected) - count as pass
-                            impl_stats[result.implementation]["passed"] += 1
+                            impl_stats[impl_name_base]["passed"] += 1
                 
                 # Update global counters
                 if all_agree_on_this_test:
@@ -1290,8 +1420,10 @@ class SwhidHarness:
         # Print detailed disagreement summary
         disagreement_tests = []
         for test_case in canonical_results.tests:
-            has_expected = test_case.expected.swhid is not None
-            expected_swhid = test_case.expected.swhid
+            has_expected_v1 = test_case.expected.swhid is not None
+            has_expected_v2 = test_case.expected.expected_swhid_sha256 is not None
+            expected_swhid_v1 = test_case.expected.swhid
+            expected_swhid_v2 = test_case.expected.expected_swhid_sha256
             
             # Get all results for this test
             results = test_case.results
@@ -1304,6 +1436,14 @@ class SwhidHarness:
             # Group by SWHID and status
             swhid_groups = {}  # swhid -> list of (impl_id, status)
             failed_impls = []  # list of (impl_id, error_message)
+            
+            # Map implementation to expected value
+            expected_by_impl = {}  # impl_name -> expected_swhid
+            for result in non_skipped_results:
+                if result.implementation.endswith('_v2'):
+                    expected_by_impl[result.implementation] = expected_swhid_v2
+                else:
+                    expected_by_impl[result.implementation] = expected_swhid_v1
             
             for result in non_skipped_results:
                 if result.status == "FAIL":
@@ -1318,15 +1458,20 @@ class SwhidHarness:
             # Check if there's a disagreement
             # Disagreement exists if:
             # - Multiple different SWHIDs
-            # - Or one SWHID but doesn't match expected (when expected exists)
+            # - Or one SWHID but doesn't match expected (when expected exists for that version)
             # - Or there are failures
             has_disagreement = False
             if len(swhid_groups) > 1:
                 has_disagreement = True
-            elif len(swhid_groups) == 1 and has_expected:
+            elif len(swhid_groups) == 1:
                 computed_swhid = list(swhid_groups.keys())[0]
-                if computed_swhid != expected_swhid:
-                    has_disagreement = True
+                impls_in_group = swhid_groups[computed_swhid]
+                # Check if any implementation's result doesn't match its expected
+                for impl_id in impls_in_group:
+                    expected_for_impl = expected_by_impl.get(impl_id)
+                    if expected_for_impl and computed_swhid != expected_for_impl:
+                        has_disagreement = True
+                        break
             elif failed_impls:
                 has_disagreement = True
             
@@ -1334,8 +1479,11 @@ class SwhidHarness:
                 disagreement_tests.append({
                     'test_id': test_case.id,
                     'category': test_case.category,
-                    'has_expected': has_expected,
-                    'expected_swhid': expected_swhid,
+                    'has_expected_v1': has_expected_v1,
+                    'has_expected_v2': has_expected_v2,
+                    'expected_swhid_v1': expected_swhid_v1,
+                    'expected_swhid_v2': expected_swhid_v2,
+                    'expected_by_impl': expected_by_impl,
                     'swhid_groups': swhid_groups,
                     'failed_impls': failed_impls
                 })
@@ -1346,9 +1494,15 @@ class SwhidHarness:
             for disc in disagreement_tests:
                 print(f"\n  [FAIL] {disc['test_id']} ({disc['category']})")
                 
-                # Show expected result status
-                if disc['has_expected']:
-                    print(f"    Expected: {disc['expected_swhid']}")
+                # Show expected result status (show both v1 and v2 if available)
+                expected_lines = []
+                if disc.get('has_expected_v1'):
+                    expected_lines.append(f"Expected (v1): {disc['expected_swhid_v1']}")
+                if disc.get('has_expected_v2'):
+                    expected_lines.append(f"Expected (v2): {disc['expected_swhid_v2']}")
+                if expected_lines:
+                    for line in expected_lines:
+                        print(f"    {line}")
                 else:
                     print(f"    Expected: (none)")
                 
@@ -1357,22 +1511,39 @@ class SwhidHarness:
                     if len(disc['swhid_groups']) > 1:
                         print(f"    Found {len(disc['swhid_groups'])} different SWHID groups:")
                         for i, (swhid, impls) in enumerate(sorted(disc['swhid_groups'].items()), 1):
-                            match_indicator = ""
-                            if disc['has_expected'] and swhid == disc['expected_swhid']:
-                                match_indicator = " [PASS] (matches expected)"
-                            elif disc['has_expected']:
-                                match_indicator = " [FAIL] (differs from expected)"
+                            # Check if this SWHID matches expected for any implementation in group
+                            matches_any = False
+                            for impl_id in impls:
+                                expected_for_impl = disc.get('expected_by_impl', {}).get(impl_id)
+                                if expected_for_impl and swhid == expected_for_impl:
+                                    matches_any = True
+                                    break
+                            
+                            match_indicator = " [PASS] (matches expected)" if matches_any else " [FAIL] (differs from expected)"
                             print(f"      Group {i}: {swhid}{match_indicator}")
                             print(f"        Implementations: {', '.join(sorted(impls))}")
                     else:
                         # Single group
                         swhid = list(disc['swhid_groups'].keys())[0]
                         impls = list(disc['swhid_groups'].values())[0]
-                        match_indicator = ""
-                        if disc['has_expected'] and swhid == disc['expected_swhid']:
-                            match_indicator = " [PASS] (matches expected)"
-                        elif disc['has_expected']:
-                            match_indicator = " [FAIL] (differs from expected)"
+                        # Check if this SWHID matches expected for any implementation
+                        # Also detect version from SWHID format (swh:2: vs swh:1:)
+                        is_v2_swhid = swhid.startswith('swh:2:')
+                        matches_any = False
+                        for impl_id in impls:
+                            expected_for_impl = disc.get('expected_by_impl', {}).get(impl_id)
+                            # If no expected_by_impl entry, try to infer from SWHID version
+                            if not expected_for_impl:
+                                if is_v2_swhid and disc.get('has_expected_v2'):
+                                    expected_for_impl = disc.get('expected_swhid_v2')
+                                elif not is_v2_swhid and disc.get('has_expected_v1'):
+                                    expected_for_impl = disc.get('expected_swhid_v1')
+                            
+                            if expected_for_impl and swhid == expected_for_impl:
+                                matches_any = True
+                                break
+                        
+                        match_indicator = " [PASS] (matches expected)" if matches_any else " [FAIL] (differs from expected)"
                         print(f"    Computed SWHID: {swhid}{match_indicator}")
                         print(f"      Implementations: {', '.join(sorted(impls))}")
                 
@@ -1566,6 +1737,14 @@ def main():
     parser.add_argument("--deep", action="store_true",
                        help="Run deep test suite including property-based tests")
     
+    # SWHID v2/SHA256 support
+    parser.add_argument("--version", type=int, choices=[1, 2],
+                       help="SWHID version to use (1 for v1/SHA1, 2 for v2/SHA256). Overrides config.")
+    parser.add_argument("--hash", choices=["sha1", "sha256"],
+                       help="Hash algorithm to use (sha1 for v1, sha256 for v2). Overrides config.")
+    parser.add_argument("--test-both-versions", action="store_true",
+                       help="Run both v1 and v2 tests when both expected values are present")
+    
     args = parser.parse_args()
     
     harness = SwhidHarness(args.config)
@@ -1630,7 +1809,14 @@ def main():
             else:
                 payload_list = args.payload
         
-        results = harness.run_tests(impl_list, category_list, payload_list)
+        results = harness.run_tests(
+            implementations=impl_list,
+            categories=category_list,
+            payloads=payload_list,
+            version=args.version,
+            hash_algo=args.hash,
+            test_both_versions=args.test_both_versions
+        )
         
         # Check for failures if fail-fast
         if args.fail_fast:

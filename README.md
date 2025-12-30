@@ -37,9 +37,14 @@ swhid-harness --category content,directory,git
 # Validate results
 python3 -m harness.models results.json
 
-# Generate HTML table with color-coded results
+# Generate HTML table (single table, backward compatible)
 python3 scripts/view_results.py results.json
+
+# Generate separate tables per variant (recommended for v2)
+python3 scripts/view_results.py results.json --output-dir output/
 ```
+
+The table generator automatically detects SWHID variants (v1, v2, etc.) and can generate separate tables for each variant, making it easy to compare results across different SWHID versions, hash algorithms, and serialization formats.
 
 ## Project Structure
 

@@ -68,8 +68,13 @@ class Implementation(SwhidImplementation):
         )
     
     def compute_swhid(self, payload_path: str, obj_type: Optional[str] = None,
-                     commit: Optional[str] = None, tag: Optional[str] = None) -> str:
-        """Compute SWHID for a payload using the Python implementation."""
+                     commit: Optional[str] = None, tag: Optional[str] = None,
+                     version: Optional[int] = None, hash_algo: Optional[str] = None) -> str:
+        """Compute SWHID for a payload using the Python implementation.
+        
+        Note: version and hash_algo parameters are accepted for API compatibility
+        but are ignored as the Python implementation only supports v1/SHA1.
+        """
         # Python swh.model.cli doesn't support revision/release types
         # Skip these as unsupported
         if obj_type in ("revision", "release"):

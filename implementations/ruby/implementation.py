@@ -114,8 +114,13 @@ class Implementation(SwhidImplementation):
         )
 
     def compute_swhid(self, payload_path: str, obj_type: Optional[str] = None,
-                     commit: Optional[str] = None, tag: Optional[str] = None) -> str:
-        """Compute SWHID for a payload using the Ruby implementation."""
+                     commit: Optional[str] = None, tag: Optional[str] = None,
+                     version: Optional[int] = None, hash_algo: Optional[str] = None) -> str:
+        """Compute SWHID for a payload using the Ruby implementation.
+        
+        Note: version and hash_algo parameters are accepted for API compatibility
+        but are ignored as the Ruby implementation only supports v1/SHA1.
+        """
         
         # Get the swhid command path
         swhid_path = self._find_swhid_path()

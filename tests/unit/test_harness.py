@@ -37,7 +37,7 @@ class MockImplementation(SwhidImplementation):
     def get_capabilities(self):
         from harness.plugins.base import ImplementationCapabilities
         return ImplementationCapabilities(
-            supported_types=["cnt", "dir"],
+            supported_types=["cnt", "dir", "rev", "rel", "snp"],
             supported_qualifiers=[],
             api_version="1.0",
             max_payload_size_mb=100,
@@ -46,7 +46,8 @@ class MockImplementation(SwhidImplementation):
         )
     
     def compute_swhid(self, payload_path: str, obj_type: str = None, 
-                     commit: Optional[str] = None, tag: Optional[str] = None) -> str:
+                     commit: Optional[str] = None, tag: Optional[str] = None,
+                     version: Optional[int] = None, hash_algo: Optional[str] = None) -> str:
         if not self._available:
             raise RuntimeError("Implementation not available")
         if self._error:
@@ -323,5 +324,6 @@ class TestSwhidHarness:
                 "repo_branch_main",
                 repo_dir,
                 ANY,
-                expected_swhid="swh:1:rev:expected"
+                expected_swhid="swh:1:rev:expected",
+                expected_swhid_sha256=None
             )

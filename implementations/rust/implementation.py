@@ -141,8 +141,18 @@ class Implementation(SwhidImplementation):
         return binary_path
     
     def compute_swhid(self, payload_path: str, obj_type: Optional[str] = None,
-                     commit: Optional[str] = None, tag: Optional[str] = None) -> str:
-        """Compute SWHID for a payload using the Rust implementation."""
+                     commit: Optional[str] = None, tag: Optional[str] = None,
+                     version: Optional[int] = None, hash_algo: Optional[str] = None) -> str:
+        """Compute SWHID for a payload using the Rust implementation.
+        
+        Args:
+            payload_path: Path to the payload
+            obj_type: Object type (content, directory, revision, release, snapshot)
+            commit: Optional commit SHA for revision SWHIDs
+            tag: Optional tag name for release SWHIDs
+            version: Optional SWHID version (1 for v1, 2 for v2). Defaults to 1.
+            hash_algo: Optional hash algorithm ('sha1' or 'sha256'). Defaults to 'sha1'.
+        """
         # Convert to absolute path
         payload_path = os.path.abspath(payload_path)
         
@@ -150,10 +160,10 @@ class Implementation(SwhidImplementation):
         if obj_type is None:
             obj_type = self.detect_object_type(payload_path)
         
-        # Get project root (should be /home/dicosmo/code/swhid-rs)
+        # Get project root
         project_root = self._get_project_root()
         if not project_root:
-            raise RuntimeError("Could not find Rust project root (/home/dicosmo/code/swhid-rs)")
+            raise RuntimeError("Could not find Rust project root. Set SWHID_RS_PATH environment variable or ensure swhid-rs project is accessible.")
         
         # Determine if we need git feature
         # Directory operations may need git feature for --permissions-source git-index
@@ -167,10 +177,17 @@ class Implementation(SwhidImplementation):
         # Run the binary directly instead of cargo run
         cmd = [binary_path]
         
+        # Add version/hash flags if specified
+        if version == 2:
+            cmd.extend(["--version", "2"])
+        if hash_algo == "sha256":
+            cmd.extend(["--hash", "sha256"])
+        
         if obj_type == "content":
             # Try both formats to support both experimental and published versions
             # First try experimental format (positional), then fall back to published (--file)
-            result_swhid = self._try_content_command(binary_path, payload_path, None, None)
+            # Pass version and hash_algo to ensure flags are added to the command
+            result_swhid = self._try_content_command(binary_path, payload_path, version, hash_algo)
             if result_swhid:
                 return result_swhid
             
@@ -187,11 +204,12 @@ class Implementation(SwhidImplementation):
             payload_path, use_git_index = self._ensure_permissions_preserved(payload_path)
             cmd.extend(["dir", payload_path])
             
-            # Use git-index explicitly when we created a Git repo
-            # This is more reliable than auto-detection and ensures we use the Git index
+            # Use auto source when we created a Git repo - it will discover the repo by walking up
+            # from the target subdirectory to find the repo root, then use Git index
+            # This is necessary because we pass a subdirectory path, not the repo root
             if use_git_index:
-                cmd.extend(["--permissions-source", "git-index"])
-                logger.info("Using --permissions-source git-index (Git repo created with permissions)")
+                cmd.extend(["--permissions-source", "auto"])
+                logger.info("Using --permissions-source auto (Git repo created, will discover and use Git index)")
             else:
                 # Use auto-detection (will use Git index if repo found, otherwise filesystem)
                 cmd.extend(["--permissions-source", "auto"])
@@ -269,7 +287,11 @@ class Implementation(SwhidImplementation):
                     if self._content_command_format == "positional":
                         # Try with --file flag
                         alt_cmd = [binary_path]
-                        # Note: version and hash_algo not supported on main branch
+                        # Add version/hash flags if specified
+                        if version == 2:
+                            alt_cmd.extend(["--version", "2"])
+                        if hash_algo == "sha256":
+                            alt_cmd.extend(["--hash", "sha256"])
                         alt_cmd.extend(["content", "--file", payload_path])
                         
                         alt_result = subprocess.run(
@@ -289,7 +311,11 @@ class Implementation(SwhidImplementation):
                     else:
                         # Try with positional argument
                         alt_cmd = [binary_path]
-                        # Note: version and hash_algo not supported on main branch
+                        # Add version/hash flags if specified
+                        if version == 2:
+                            alt_cmd.extend(["--version", "2"])
+                        if hash_algo == "sha256":
+                            alt_cmd.extend(["--hash", "sha256"])
                         alt_cmd.extend(["content", payload_path])
                         
                         alt_result = subprocess.run(
@@ -410,17 +436,19 @@ class Implementation(SwhidImplementation):
             errors='replace'
         )
         
-        # Copy directory or file directly into repo root
-        # swhid-rs with --permissions-source git-index uses Repository::open(root)
-        # which expects root to be the repository root (where .git is)
-        # So we copy files directly into repo root and pass repo_path to swhid-rs
+        # Copy directory or file to a subdirectory to avoid including .git in the computation
+        # This matches git-cmd's approach: copy to target subdirectory, then move contents to repo root
+        # But we'll keep them in the subdirectory and pass that to swhid-rs
+        # swhid-rs with --permissions-source auto will discover the Git repo by walking up
+        target_subdir = os.path.join(repo_path, "target")
+        os.makedirs(target_subdir, exist_ok=True)
+        
         if os.path.isdir(source_path):
-            # Copy directory contents directly into repo root (not a subdirectory)
-            # This way, when we pass repo_path to swhid-rs, it can find .git immediately
+            # Copy directory contents to target subdirectory
             # Preserve symlinks (important for mixed_types test)
             for item in os.listdir(source_path):
                 src_item = os.path.join(source_path, item)
-                dst_item = os.path.join(repo_path, item)
+                dst_item = os.path.join(target_subdir, item)
                 if os.path.islink(src_item):
                     # Preserve symlinks by copying the symlink itself, not the target
                     link_target = os.readlink(src_item)
@@ -430,9 +458,9 @@ class Implementation(SwhidImplementation):
                 else:
                     shutil.copy2(src_item, dst_item)
             
-            # Add all files to Git index
+            # Add all files to Git index (from target subdirectory)
             subprocess.run(
-                ["git", "add", "."],
+                ["git", "add", "target"],
                 cwd=repo_path,
                 check=True,
                 capture_output=True,
@@ -441,11 +469,11 @@ class Implementation(SwhidImplementation):
             )
             
             # Apply executable permissions to Git index
-            # This must be done after git add, and paths must be relative to repo root
+            # Paths must be relative to repo root (include "target/" prefix)
             for rel_path, is_executable in source_permissions.items():
                 if is_executable:
-                    # Path relative to source directory, which is now relative to repo root
-                    git_path = rel_path.replace(os.sep, '/')
+                    # Path relative to source directory, prepend "target/" for Git index
+                    git_path = os.path.join("target", rel_path).replace(os.sep, '/')
                     # Verify file exists in repo before trying to set permission
                     file_path = os.path.join(repo_path, git_path)
                     if os.path.exists(file_path):
@@ -496,8 +524,9 @@ class Implementation(SwhidImplementation):
                 # Non-critical, but log it
                 logger.debug("Git index refresh failed (non-critical)")
             
-            # Return the repo root path - swhid-rs can find .git here
-            return repo_path, True
+            # Return the target subdirectory path - swhid-rs will discover Git repo by walking up
+            # Use auto source so it can discover the repo
+            return target_subdir, True
         else:
             # Copy single file
             target_file = os.path.join(repo_path, os.path.basename(source_path))

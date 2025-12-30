@@ -223,6 +223,8 @@ swhid-harness --help  # Full help
 
 ### Viewing Results
 
+The harness provides multiple ways to view and analyze test results, from JSON inspection to HTML table generation. The table generator supports both single-table mode (backward compatible) and variant-based mode (recommended for v2 and future variants).
+
 ```bash
 # Validate schema
 python3 -m harness.models results.json
@@ -236,14 +238,80 @@ cat results.json | jq '.aggregates.overall.pass_rate'
 # Find failures
 cat results.json | jq '.tests[] | select(.results[] | .status == "FAIL")'
 
-# Generate HTML table with color-coded results
+# Generate HTML table (single table, backward compatible)
 python scripts/view_results.py results.json
 python scripts/view_results.py results.json --output custom.html
 ```
 
-#### HTML Results Viewer
+#### HTML Results Tables
 
-The `scripts/view_results.py` script generates a color-coded HTML table from test results:
+The `scripts/view_results.py` script generates color-coded HTML tables from test results. It supports two modes:
+
+- **Single Table Mode**: Generates one table with all results (backward compatible)
+- **Variant-Based Tables**: Generates separate tables for each SWHID variant (recommended for v2)
+
+##### Single Table Mode
+
+Generate a single HTML table with all test results:
+
+```bash
+# Generate single table (default)
+python scripts/view_results.py results.json
+
+# Generate single table with custom output file
+python scripts/view_results.py results.json --output custom.html
+```
+
+This mode is backward compatible and works well when all results use the same SWHID variant (e.g., v1 only).
+
+##### Variant-Based Tables
+
+When test results contain multiple SWHID variants (different versions, hash algorithms, or serialization formats), you can generate separate tables for each variant:
+
+```bash
+# Automatically detects and generates tables for all variants
+python scripts/view_results.py results.json --output-dir output/
+```
+
+This creates:
+- `output/results_index.html` - Navigation page with variant statistics
+- `output/results_v1_sha1_hex.html` - V1 (SHA1 hex) results
+- `output/results_v2_sha256_hex.html` - V2 (SHA256 hex) results
+- Additional tables for any other detected variants (e.g., `v2_sha256_base64.html`)
+
+**Generate Specific Variant**:
+
+```bash
+# Generate only v2 table
+python scripts/view_results.py results.json --output-dir output/ --variant v2_sha256_hex
+```
+
+**Variant Detection**:
+
+The system automatically detects variants from SWHID format using two methods:
+
+1. **Hash Length Analysis**: Different serialization formats produce different hash lengths:
+   - SHA256 hex: 64 characters (32 bytes × 2)
+   - SHA256 base64: 44 characters (32 bytes × 4/3, with padding)
+   - SHA256 base85: 40 characters (32 bytes × 5/4)
+   - SHA256 base32: 52 characters (32 bytes × 8/5)
+
+2. **Character Set Detection**: Each serialization format uses a distinct character set:
+   - Hex: `[0-9a-f]` only
+   - Base64: `[A-Za-z0-9+/=]` (includes padding `=`)
+   - Base85: `[!-u]` (ASCII85 character range)
+   - Base32: `[A-Z2-7=]` (no lowercase, no 0/1/8/9)
+
+Examples:
+- `swh:1:cnt:e69de29bb2d1d6434b8b29ae775ad8c2e48c5391` → v1_sha1_hex (40 chars, hex)
+- `swh:2:cnt:473a0f4c3be8a93681a267e3b1e9a7dcda1185436fe141f7749120a303721813` → v2_sha256_hex (64 chars, hex)
+- `swh:2:cnt:RzoPxMO+iZNhombjse6n3N2hGFQ2/hQfd0kSCjA3IYM=` → v2_sha256_base64 (44 chars, base64)
+
+The combination of length and character set ensures accurate detection even for future serialization formats.
+
+##### Table Features
+
+Both single-table and variant-based modes share the same color-coding system:
 
 - **Color-coded cells**: Each cell uses a background color to indicate status:
   - Green: Conformant (PASS with matching expected SWHID)
@@ -254,11 +322,13 @@ The `scripts/view_results.py` script generates a color-coded HTML table from tes
 - **Compact design**: Cells are color-only (no text labels) except for non-conformant cases which show the full wrong SWHID
 - **Tooltips**: Hover over any cell to see full details (status, SWHID, expected value, errors)
 - **Legend**: Color code explanation at the top of the page
+- **Variant-specific expected values**: Variant-based tables automatically use the correct expected SWHID for each variant (e.g., `expected_swhid_sha256` for v2)
 
-The HTML table makes it easy to:
+The HTML tables make it easy to:
 - Quickly identify which implementations disagree
 - See the exact wrong SWHIDs for non-conformant cases
 - Compare results across all implementations at a glance
+- Compare results across different SWHID variants
 - Share results with others (HTML is self-contained)
 
 ## Troubleshooting
@@ -359,6 +429,110 @@ To compute expected SWHIDs:
 ```bash
 swh identify payloads/content/hello.txt
 ```
+
+## Testing SWHID v2 with SHA256
+
+The harness supports testing SWHID v2 with SHA256 hash functions alongside v1 tests.
+
+### Generating Expected SHA256 Results
+
+To generate expected SHA256 SWHID results from Git:
+
+```bash
+python3 tools/generate_sha256_expected.py config.yaml
+```
+
+This script:
+- Creates SHA256 Git repositories for each payload
+- Computes Git SHA256 object hashes (blobs, trees, commits, tags)
+- Adds `expected_swhid_sha256` fields to `config.yaml`
+- Preserves existing `expected_swhid` (v1) values
+
+### Viewing v2 Test Results
+
+When running v2 tests, results will contain both v1 and v2 SWHIDs. Use variant-based table generation to view them separately:
+
+```bash
+# Generate separate tables for v1 and v2
+python scripts/view_results.py results.json --output-dir output/
+
+# Generate only v2 table
+python scripts/view_results.py results.json --output-dir output/ --variant v2_sha256_hex
+```
+
+The variant-based tables automatically use the correct expected values (`expected_swhid` for v1, `expected_swhid_sha256` for v2) and make it easy to compare results across versions. See the [Viewing Results](#viewing-results) section for more details on variant-based table generation.
+
+The script supports:
+- Content objects (files)
+- Directory objects (directories with files)
+- Revision objects (Git commits)
+- Release objects (Git annotated tags)
+- Tarball extraction for git-repository payloads
+
+**Note**: Snapshot objects are excluded as Git doesn't support snapshot object format.
+
+### Configuring v2 Testing
+
+In `config.yaml`, add `expected_swhid_sha256` for payloads that support v2:
+
+```yaml
+payloads:
+  content:
+  - name: hello_world
+    path: payloads/content/hello.txt
+    expected_swhid: swh:1:cnt:...  # v1 (SHA1)
+    expected_swhid_sha256: swh:2:cnt:...  # v2 (SHA256)
+```
+
+Optional per-payload configuration:
+
+```yaml
+  - name: test_v2_only
+    path: payloads/content/test.txt
+    expected_swhid_sha256: swh:2:cnt:...
+    rust_config:
+      version: 2
+      hash: sha256
+```
+
+### Running v2 Tests
+
+**Run v1 tests (default)**:
+```bash
+swhid-harness --impl rust --category content
+```
+
+**Run v2 tests only**:
+```bash
+swhid-harness --impl rust --version 2 --hash sha256 --category content
+```
+
+**Run both v1 and v2 tests**:
+```bash
+swhid-harness --impl rust --test-both-versions --category content
+```
+
+This runs both versions when both `expected_swhid` and `expected_swhid_sha256` are present.
+
+### CLI Flags
+
+- `--version {1,2}`: Override SWHID version (overrides config)
+- `--hash {sha1,sha256}`: Override hash algorithm (overrides config)
+- `--test-both-versions`: Run both v1 and v2 when both expected values present
+
+### Version Determination Priority
+
+The harness determines which version(s) to test using this priority:
+
+1. **CLI flags** (`--version`, `--hash`) - highest priority
+2. **Payload rust_config** (per-payload config in `config.yaml`)
+3. **Expected values presence** (`expected_swhid_sha256` indicates v2 support)
+4. **Default** - v1 only
+
+### Implementation Support
+
+Currently, the Rust implementation supports v2/SHA256 via `--version 2 --hash sha256` flags
+passed to the `swhid` binary. Other implementations will be extended as needed.
 
 ## Getting Help
 

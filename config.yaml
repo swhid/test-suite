@@ -9,124 +9,156 @@ payloads:
     expected_swhid: swh:1:cnt:e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
     name: empty_file
     path: payloads/content/empty.txt
+    expected_swhid_sha256: swh:2:cnt:473a0f4c3be8a93681a267e3b1e9a7dcda1185436fe141f7749120a303721813
   - description: File with single space (non-empty whitespace)
     expected_swhid: swh:1:cnt:8d1c8b69c3fce7bea45c73efd06983e3c419a92f
     name: truly_empty
     path: payloads/content/truly_empty.txt
+    expected_swhid_sha256: swh:2:cnt:5739035bedeba9615f3406b3f5e3e7881d440616941f5b5918eab90f14428019
   - description: Simple text file
     expected_swhid: swh:1:cnt:f732d2ae1a449d8204f266b59bb35cb4eb0e899d
     name: hello_world
     path: payloads/content/hello.txt
+    expected_swhid_sha256: swh:2:cnt:a0a477f1ecf419c7eaa7fe256c5c12fb03bee86df9a22aad25f85930de203e14
   - description: Text with Unicode characters
     expected_swhid: swh:1:cnt:a5c8b6044dbae83d6d31ce1d66f09b9900d0556a
     name: unicode_text
     path: payloads/content/unicode.txt
+    expected_swhid_sha256: swh:2:cnt:b0c2d7d90cf1a9497ef1ea636c3bba1c38d0041275b7a8abea21a62fe29d31d0
   - description: Binary file
     expected_swhid: swh:1:cnt:b909b6e399ef856d8c36fcb662322152e8ff04da
     name: binary_file
     path: payloads/content/binary.bin
+    expected_swhid_sha256: swh:2:cnt:41c39889d1ec9ed0c66c041ab3d5f3a9f15658456f937bb0141386c9f7352dab
   - description: Large text file (>1MB)
     expected_swhid: swh:1:cnt:fc26db1cf2fd25ac90dbf93eef0ebb92b51e8850
     name: large_file
     path: payloads/content/large.txt
+    expected_swhid_sha256: swh:2:cnt:1707c428cf4b5ca56c153dd298b7a2c11e5a5fa63c145c4c9fafbfc37be417b8
   content/edge_cases:
   - description: File with CRLF line endings
     expected_swhid: swh:1:cnt:08a29ba1a45a68c26a3326af2b32d0d53741b8e2
     name: crlf_line_endings
     path: payloads/content/edge_cases/crlf.txt
+    expected_swhid_sha256: swh:2:cnt:358ca252cdba86b8b4a63793bfeae634f48a8d9be80d9f38c11a48ae5978b675
   - description: File with LF-only line endings
     expected_swhid: swh:1:cnt:baa3d84af3432fc2165fbeedfd3d01a9ef8f1f8f
     name: lf_only_line_endings
     path: payloads/content/edge_cases/lf_only.txt
+    expected_swhid_sha256: swh:2:cnt:8d350824350b609d7dd52c283008e4fdc093750a7cfe47b0e516bed780454b97
   - description: File with zero bytes (null characters)
     expected_swhid: swh:1:cnt:c2e47a26313532fc1adeb13e3231cd9909d38fac
     name: zero_bytes
     path: payloads/content/edge_cases/zero_bytes.bin
+    expected_swhid_sha256: swh:2:cnt:878e4fcc1ec6063fee615b8c2527db5ce809b785fdfa454a64f4979cffbf3826
   - description: File with huge line (>10KB)
     expected_swhid: swh:1:cnt:0cc78f03afecc3168390651ee40b7d605c47373b
     name: huge_line
     path: payloads/content/edge_cases/huge_line.txt
+    expected_swhid_sha256: swh:2:cnt:71fc787559ba944bd647614c1973acd2d68d58bc32c2635d80a34a6be6e157f6
   - description: File with only newlines
     expected_swhid: swh:1:cnt:3f2ff2d6cc8f257ffcade7ead1ca4042c0e884b9
     name: only_newlines
     path: payloads/content/edge_cases/only_newlines.txt
+    expected_swhid_sha256: swh:2:cnt:5c601de2c229872649d66f9523f82d6b9db10d7cd0ebc6bbd11eaa88fedf6f83
   - description: File with trailing newline
     expected_swhid: swh:1:cnt:e965047ad7c57865823c7d992b1d046ea66edf78
     name: with_trailing_newline
     path: payloads/content/edge_cases/with_trailing_nl.txt
+    expected_swhid_sha256: swh:2:cnt:66224663d23e6f4d9de9e2c7e6d8764305a92a3830a1a52d3d5f4aa8007b5c39
   - description: File without trailing newline
     expected_swhid: swh:1:cnt:5ab2f8a4323abafb10abb68657d9d39f1a775057
     name: no_trailing_newline
     path: payloads/content/edge_cases/no_trailing_nl.txt
+    expected_swhid_sha256: swh:2:cnt:1301800ffa9c48e2a82cbfda7fe9d17d5605cfa5df7c673639c44d8fcc244a71
   - description: File with mixed line endings (CRLF and LF)
     expected_swhid: swh:1:cnt:34f1257dbbb7e20b745654c0cd067ff24375d1d7
     name: mixed_line_endings
     path: payloads/content/edge_cases/mixed_line_endings.txt
+    expected_swhid_sha256: swh:2:cnt:0c5577ca2629467c3edfff5fa717739a7576d4bdf0d34563c60700cd9a41c7ad
   directory:
   - description: Empty directory
     expected_swhid: swh:1:dir:d564d0bc3dd917926892c55e3706cc116d5b165e
     name: empty_dir
     path: payloads/directory/empty/
+    expected_swhid_sha256: swh:2:dir:de6f8a1c4a2e6e2d8fc8b81fd7cb477ab5f58af185b8bb57046052f170fbb222
   - description: Directory with files
     expected_swhid: swh:1:dir:3f09c252c646f8ac591d60e02e41ab09274de7c1
     name: simple_dir
     path: payloads/directory/simple/
+    expected_swhid_sha256: swh:2:dir:8b6ff16ed274bf60326d654c3f5bca679a7ced5542be29713bb67b36a1237ac2
   - description: Directory with subdirectories
     expected_swhid: swh:1:dir:0bbbf9c7f265450b510251ff215a729f062a763a
     name: nested_dir
     path: payloads/directory/nested/
+    expected_swhid_sha256: swh:2:dir:741f4566b80fb94c13dee7e1c10d934f49c4f3bf03b1fc8b2ed6816c97ca9002
   - description: Directory with symlinks
     expected_swhid: swh:1:dir:98e24c042d1ed01420c09c873d8b5e4e50c400bf
     name: symlink_dir
     path: payloads/directory/symlink/
+    expected_swhid_sha256: swh:2:dir:977e5f1ebb683f9006fb828c1a5e8fe0155a7211694d123db2a591d640460ad2
   - description: Directory with special permissions
     expected_swhid: swh:1:dir:bc3f7f74e7aa5fcb859eaaa3949d5cae29c28ca4
     name: permissions_dir
     path: payloads/directory/permissions/
+    expected_swhid_sha256: swh:2:dir:702b56cb3d129536c6ea6f77eca4bf6a171374774a27a3c638c8439bc4728f7e
   directory/edge_cases:
   - description: Directory with entries in alphabetical order (tests entry ordering)
     expected_swhid: swh:1:dir:367667c0665514d6e9aacf236eca852ae92c0cf6
     name: entry_ordering
     path: payloads/directory/edge_cases/entry_ordering/
-  - description: Directory with special characters in filenames (spaces, semicolons, percent signs)
+    expected_swhid_sha256: swh:2:dir:82adc728758d57594b716d575e10758aa94a0a282a05c03006e1a33a45f85615
+  - description: Directory with special characters in filenames (spaces, semicolons,
+      percent signs)
     expected_swhid: swh:1:dir:09b68fff5b158f616bd76d5e82836dafc6b96aaf
     name: special_chars
     path: payloads/directory/edge_cases/special_chars/
-  - description: Directory testing path= qualifier with percent-encoded vs literal slashes (file%2Fwith%2Fslash vs file/with/slash)
+    expected_swhid_sha256: swh:2:dir:bef9c1db670f9ee378973ceb7890ef9c7fb59e86da37d0b9d7e87a3b01b5242c
+  - description: Directory testing path= qualifier with percent-encoded vs literal
+      slashes (file%2Fwith%2Fslash vs file/with/slash)
     expected_swhid: swh:1:dir:cfed4cb9781dbec4a5d0184bd2f671dc350137ca
     name: path_terminator
     path: payloads/directory/edge_cases/path_terminator/
-  - description: Directory testing path= qualifier with percent-encoded vs literal percent signs (file%25with%25percent vs
-      file%with%percent)
+    expected_swhid_sha256: swh:2:dir:2fd0f61dcec74b4c3313ed94de2289886fa05f5347729b5250913c6db3ab69d1
+  - description: Directory testing path= qualifier with percent-encoded vs literal
+      percent signs (file%25with%25percent vs file%with%percent)
     expected_swhid: swh:1:dir:e74c2821d3ed7d865d81068116994c209988dac2
     name: empty_paths
     path: payloads/directory/edge_cases/empty_paths/
+    expected_swhid_sha256: swh:2:dir:fafa6df6af8dcc7855a02943d7097187f28de8e7111540f876fcacf85a1a53b0
   - description: Directory with comprehensive permission variations
     expected_swhid: swh:1:dir:32798ac33695bd283d6e650c61a40bc2dbda3a2e
     name: comprehensive_permissions
     path: payloads/directory/edge_cases/comprehensive_permissions/
+    expected_swhid_sha256: swh:2:dir:42ddd5a29409f434627457ae2cd6460d17c161aa02a7df7609ae9417ed11b016
   - description: Directory with mixed types (files, subdirs, symlinks, executables)
     expected_swhid: swh:1:dir:6a805bfd6380e2e1e4412ac66933ebd244fb9d72
     name: mixed_types
     path: payloads/directory/edge_cases/mixed_types/
-  - description: Directory with Unicode characters in filenames (Chinese, Cyrillic, Japanese, emoji)
+    expected_swhid_sha256: swh:2:dir:c41d695c2be887347e58a7cf748fae790a387172b7365298f41f1902ecd8f8ce
+  - description: Directory with Unicode characters in filenames (Chinese, Cyrillic,
+      Japanese, emoji)
     expected_swhid: swh:1:dir:ee7194e754e8a911d41b83a06c10a22b7266d1bd
     name: unicode_names
     path: payloads/directory/edge_cases/unicode_names/
+    expected_swhid_sha256: swh:2:dir:dbfc924111a1575680faca6d3702622987cf2c8ac4eb7af2f2a0d37a1f386fd9
   - description: Directory with Unicode normalization test (NFC vs NFD filenames)
     expected_swhid: swh:1:dir:53d793e1a86c17e1c120e8cf1d9cec788a5c360f
     name: unicode_normalization
     path: payloads/directory/edge_cases/unicode_normalization/
+    expected_swhid_sha256: swh:2:dir:996e3bc4715f32b0bfb5f2f9f69cf57ddc60cc0243097ed6cad1a88ea51019dc
   git:
   - description: Synthetic Git repo with main, feature, and a tag
     expected_swhid: swh:1:snp:d66db619f7d82b4bc6524810d045d731ae099ef7
     name: synthetic_repo
     path: payloads/git/synthetic/
-  - description: Git repo with snapshot branches in alphabetical order (alpha, beta, gamma, zeta) - tests branch ordering
+  - description: Git repo with snapshot branches in alphabetical order (alpha, beta,
+      gamma, zeta) - tests branch ordering
     expected_swhid: swh:1:snp:8f0d48de532ad98671b25f6b069ee3003f46a505
     name: snapshot_branch_order
     path: payloads/git/snapshot_branch_order/
-  - description: Git repo with dangling branches (branches pointing to non-existent commits)
+  - description: Git repo with dangling branches (branches pointing to non-existent
+      commits)
     expected_swhid: swh:1:snp:0ce5ce1b6f89d6b89c7ae6a603253e0916f8c84a
     name: dangling_branches
     path: payloads/git/dangling_branches/
@@ -167,15 +199,18 @@ payloads:
     name: simple_revisions
     path: payloads/git-repository/simple_revisions.tar.gz
     expected_swhid: swh:1:snp:2f1450c1be7a6945b69d2c3724ac30a3be025e92
-  - description: Git repo with merge commits - tests snapshot and revision from merge commit
+  - description: Git repo with merge commits - tests snapshot and revision from merge
+      commit
     name: merge_commits
     path: payloads/git-repository/merge_commits.tar.gz
     expected_swhid: swh:1:snp:5c9c3c9be880d0ac89707304017006716d6749a6
-  - description: Git repo with both annotated and lightweight tags - tests snapshot, release
+  - description: Git repo with both annotated and lightweight tags - tests snapshot,
+      release
     name: tag_types
     path: payloads/git-repository/tag_types.tar.gz
     expected_swhid: swh:1:snp:98a720761e59ff1704a84b38e0f3f683a6c2d5d9
-  - description: Git repo with multiple branches (alpha, beta, gamma, zeta, main) - tests snapshot branch ordering
+  - description: Git repo with multiple branches (alpha, beta, gamma, zeta, main)
+      - tests snapshot branch ordering
     name: branch_ordering
     path: payloads/git-repository/branch_ordering.tar.gz
     expected_swhid: swh:1:snp:e44a647204ef944dd0fd28302a0d65124b93cd36
@@ -183,7 +218,8 @@ payloads:
     name: complex_merges
     path: payloads/git-repository/complex_merges.tar.gz
     expected_swhid: swh:1:snp:604524a5decb4c927258eb4d9f5a121c48218bd4
-  - description: Comprehensive Git repo with multiple branches and annotated tags - auto-discovers all branches and tags
+  - description: Comprehensive Git repo with multiple branches and annotated tags
+      - auto-discovers all branches and tags
     name: comprehensive
     path: payloads/git-repository/comprehensive.tar.gz
     discover_branches: true
@@ -201,8 +237,8 @@ payloads:
         v1.1.0: swh:1:rel:00f5b371d166cff902716f88c59e97eb21d18a7a
         v2.0.0: swh:1:rel:eb40be8808a4c33f3d3daab634344b673996a49f
         v2.1.0: swh:1:rel:edaf91f706742fcb19591f59b5397b0a7a09ac39
-  - description: Git repo with signed commits (GPG-signed revisions) - tests revision SWHID computation for signed commits
-      - auto-discovers all branches
+  - description: Git repo with signed commits (GPG-signed revisions) - tests revision
+      SWHID computation for signed commits - auto-discovers all branches
     name: signed_revisions
     path: payloads/git-repository/signed_revisions.tar.gz
     discover_branches: true
@@ -210,7 +246,8 @@ payloads:
       branches:
         main: swh:1:rev:8a1241cc9d81178d7c1c29201354b2cb309601fe
         signed-feature: swh:1:rev:8a1241cc9d81178d7c1c29201354b2cb309601fe
-  - description: Git repo with signed tags (GPG-signed releases) - tests release SWHID computation for signed tags
+  - description: Git repo with signed tags (GPG-signed releases) - tests release SWHID
+      computation for signed tags
     name: signed_releases
     path: payloads/git-repository/signed_releases.tar.gz
     expected_swhid: swh:1:snp:1a358894eaa5f6f9727168d9280e992af1a076b4
