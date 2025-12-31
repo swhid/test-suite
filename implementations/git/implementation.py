@@ -186,6 +186,9 @@ class Implementation(SwhidImplementation):
                 try:
                     # Calculate relative path from source_dir
                     rel_path = os.path.relpath(file_path, source_dir)
+                    # Normalize path separators to forward slashes for cross-platform consistency
+                    # This ensures lookup works correctly when paths are normalized in _create_git_tree
+                    rel_path = rel_path.replace(os.sep, '/')
                     stat_info = os.stat(file_path)
                     is_executable = bool(stat_info.st_mode & stat.S_IEXEC)
                     permissions[rel_path] = is_executable

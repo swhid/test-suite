@@ -279,10 +279,14 @@ class Implementation(SwhidImplementation):
                         for file in files:
                             file_path = os.path.join(root, file)
                             rel_path = os.path.relpath(file_path, source_path)
+                            # Normalize path separators to forward slashes for cross-platform consistency
+                            rel_path = rel_path.replace(os.sep, '/')
                             
                             # Get path relative to repo root
                             try:
                                 repo_rel_path = os.path.relpath(file_path, repo_root)
+                                # Normalize for Git command (Git uses forward slashes)
+                                repo_rel_path = repo_rel_path.replace(os.sep, '/')
                                 # Check Git index
                                 result = subprocess.run(
                                     ['git', 'ls-files', '--stage', repo_rel_path],
@@ -330,6 +334,8 @@ class Implementation(SwhidImplementation):
                 for file in files:
                     file_path = os.path.join(root, file)
                     rel_path = os.path.relpath(file_path, source_path)
+                    # Normalize path separators to forward slashes for cross-platform consistency
+                    rel_path = rel_path.replace(os.sep, '/')
                     
                     # Skip if we already got permission from Git index
                     if rel_path in source_permissions:
