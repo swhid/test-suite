@@ -152,7 +152,9 @@ class Implementation(SwhidImplementation):
             raise RuntimeError("Could not find Rust project root (/home/dicosmo/code/swhid-rs)")
         
         # Determine if we need git feature
-        needs_git = obj_type in ("snapshot", "revision", "release")
+        # Directory operations may need git feature for --permissions-source git-index
+        # (though auto-detection will work without it if no Git repo is found)
+        needs_git = obj_type in ("snapshot", "revision", "release") or obj_type == "directory"
         
         # Ensure binary is built (check and build if needed)
         binary_path = self._ensure_binary_built(project_root, needs_git=needs_git)
@@ -176,10 +178,19 @@ class Implementation(SwhidImplementation):
                 cmd.extend(["content", payload_path])
         elif obj_type == "directory":
             # For directory: swhid dir <path>
-            # On Windows, we need to preserve file permissions before calling the tool
-            # Create a temporary copy with correct permissions
-            payload_path = self._ensure_permissions_preserved(payload_path)
+            # Use new permission handling features from swhid-rs
+            # Create a temporary Git repo with permissions set in index if needed
+            payload_path, use_git_index = self._ensure_permissions_preserved(payload_path)
             cmd.extend(["dir", payload_path])
+            
+            # Use git-index permission source if we created a Git repo
+            if use_git_index:
+                cmd.extend(["--permissions-source", "git-index"])
+                logger.info("Using --permissions-source git-index for directory computation")
+            else:
+                # Use auto-detection (will use Git index if repo found, otherwise filesystem)
+                cmd.extend(["--permissions-source", "auto"])
+                logger.debug("Using --permissions-source auto for directory computation")
         elif obj_type == "snapshot":
             # For snapshot: swhid git snapshot <REPO> [COMMIT]
             # Note: requires --features git, so we need to ensure binary was built with git feature
@@ -298,82 +309,189 @@ class Implementation(SwhidImplementation):
             # Cleanup temporary directories if created
             self._cleanup_temp_dirs()
     
-    def _ensure_permissions_preserved(self, source_path: str) -> str:
+    def _ensure_permissions_preserved(self, source_path: str) -> tuple[str, bool]:
         """Ensure file permissions are preserved for external tools.
         
         On Windows, files lose executable bits when copied. This method creates
-        a temporary copy with correct permissions set, which external tools
-        (like the Rust swhid binary) can read correctly.
+        a temporary Git repository with permissions set in the Git index,
+        which swhid-rs can read using --permissions-source git-index.
         
         Args:
             source_path: Path to source file or directory
         
         Returns:
-            Path to use (may be temporary copy on Windows, or original on Unix)
+            Tuple of (path_to_use, use_git_index_flag)
+            - path_to_use: Path to use (may be temporary Git repo, or original)
+            - use_git_index: True if we created a Git repo and should use --permissions-source git-index
         """
         import stat
         import tempfile
         import shutil
         import platform
         
-        # On Unix-like systems, permissions are usually preserved
-        # Only create temp copy on Windows
+        # On Unix-like systems, permissions are usually preserved from filesystem
+        # swhid-rs can read them directly, so use auto-detection
         if platform.system() != 'Windows':
-            return source_path
+            return source_path, False
         
-        # Read source permissions
-        # On Windows, check Git index first as filesystem may not preserve executable bits
+        # Read source permissions from filesystem or existing Git repo
+        source_permissions = self._get_source_permissions(source_path)
+        
+        # If no executable files found, no need for Git repo
+        if not any(source_permissions.values()):
+            return source_path, False
+        
+        # Create temporary Git repository with permissions set in index
+        # This is the recommended approach: use Git index which swhid-rs can read
+        temp_dir = tempfile.mkdtemp(prefix="swhid-rs-tools-")
+        self._temp_dirs = getattr(self, '_temp_dirs', [])
+        self._temp_dirs.append(temp_dir)
+        
+        repo_path = os.path.join(temp_dir, "repo")
+        os.makedirs(repo_path)
+        
+        # Initialize Git repository
+        subprocess.run(
+            ["git", "init"],
+            cwd=repo_path,
+            check=True,
+            capture_output=True,
+            encoding='utf-8',
+            errors='replace'
+        )
+        
+        # Configure Git for SWHID testing (preserve line endings and permissions)
+        subprocess.run(
+            ["git", "config", "core.autocrlf", "false"],
+            cwd=repo_path,
+            check=True,
+            capture_output=True,
+            encoding='utf-8',
+            errors='replace'
+        )
+        subprocess.run(
+            ["git", "config", "core.filemode", "true"],
+            cwd=repo_path,
+            check=True,
+            capture_output=True,
+            encoding='utf-8',
+            errors='replace'
+        )
+        
+        # Copy directory or file into repo
+        if os.path.isdir(source_path):
+            # Copy directory contents
+            target_path = os.path.join(repo_path, "target")
+            shutil.copytree(source_path, target_path, symlinks=True)
+            
+            # Add all files to Git index
+            subprocess.run(
+                ["git", "add", "target"],
+                cwd=repo_path,
+                check=True,
+                capture_output=True,
+                encoding='utf-8',
+                errors='replace'
+            )
+            
+            # Apply executable permissions to Git index
+            for rel_path, is_executable in source_permissions.items():
+                if is_executable:
+                    # Path relative to source directory, but we need path relative to repo
+                    git_path = os.path.join("target", rel_path)
+                    # Normalize for Git (use forward slashes)
+                    git_path = git_path.replace(os.sep, '/')
+                    try:
+                        subprocess.run(
+                            ["git", "update-index", "--chmod=+x", git_path],
+                            cwd=repo_path,
+                            check=True,
+                            capture_output=True,
+                            encoding='utf-8',
+                            errors='replace'
+                        )
+                    except subprocess.CalledProcessError:
+                        # If update-index fails, continue (file might not be in index)
+                        pass
+            
+            return target_path, True
+        else:
+            # Copy single file
+            target_file = os.path.join(repo_path, os.path.basename(source_path))
+            shutil.copy2(source_path, target_file)
+            
+            # Add to Git index
+            file_name = os.path.basename(source_path)
+            subprocess.run(
+                ["git", "add", file_name],
+                cwd=repo_path,
+                check=True,
+                capture_output=True,
+                encoding='utf-8',
+                errors='replace'
+            )
+            
+            # Apply executable permission if needed
+            if source_permissions.get('.', False):
+                try:
+                    subprocess.run(
+                        ["git", "update-index", "--chmod=+x", file_name],
+                        cwd=repo_path,
+                        check=True,
+                        capture_output=True,
+                        encoding='utf-8',
+                        errors='replace'
+                    )
+                except subprocess.CalledProcessError:
+                    pass
+            
+            return target_file, True
+    
+    def _get_source_permissions(self, source_path: str) -> dict:
+        """Read source file permissions.
+        
+        Returns a dictionary mapping relative paths to executable status.
+        """
+        import stat
         source_permissions = {}
         
-        # On Windows, try to read permissions from Git index first
-        # This is more reliable than filesystem permissions
+        # First, try to read from existing Git repository if available
         try:
-            # Get absolute path to source_path
             abs_source_path = os.path.abspath(source_path)
-            # Get repository root (walk up to find .git)
-            repo_root = abs_source_path
-            if os.path.isdir(repo_root):
-                check_path = repo_root
-            else:
-                check_path = os.path.dirname(repo_root)
+            check_path = abs_source_path if os.path.isdir(abs_source_path) else os.path.dirname(abs_source_path)
+            repo_root = None
             
             while check_path != os.path.dirname(check_path):
                 if os.path.exists(os.path.join(check_path, '.git')):
                     repo_root = check_path
                     break
                 check_path = os.path.dirname(check_path)
-            else:
-                repo_root = None
             
-            # If we found a repo, check Git index for permissions
             if repo_root:
+                # Read permissions from Git index
                 if os.path.isdir(source_path):
                     for root, dirs, files in os.walk(source_path):
                         for file in files:
                             file_path = os.path.join(root, file)
                             rel_path = os.path.relpath(file_path, source_path)
-                            # Normalize path separators to forward slashes for cross-platform consistency
                             rel_path = rel_path.replace(os.sep, '/')
                             
-                            # Get path relative to repo root
                             try:
                                 repo_rel_path = os.path.relpath(file_path, repo_root)
-                                # Normalize for Git command (Git uses forward slashes)
                                 repo_rel_path = repo_rel_path.replace(os.sep, '/')
-                                # Check Git index
                                 result = subprocess.run(
                                     ['git', 'ls-files', '--stage', repo_rel_path],
                                     cwd=repo_root,
                                     capture_output=True,
                                     text=True,
-                                    timeout=2
+                                    timeout=2,
+                                    encoding='utf-8',
+                                    errors='replace'
                                 )
                                 if result.returncode == 0 and result.stdout.strip():
-                                    # Format: <mode> <sha> <stage> <path>
                                     parts = result.stdout.strip().split()
                                     if parts:
                                         git_mode = parts[0]
-                                        # Mode is octal string, e.g., '100755' for executable
                                         is_executable = git_mode.endswith('755')
                                         source_permissions[rel_path] = is_executable
                                         continue
@@ -382,12 +500,15 @@ class Implementation(SwhidImplementation):
                 elif os.path.isfile(source_path):
                     try:
                         repo_rel_path = os.path.relpath(source_path, repo_root)
+                        repo_rel_path = repo_rel_path.replace(os.sep, '/')
                         result = subprocess.run(
                             ['git', 'ls-files', '--stage', repo_rel_path],
                             cwd=repo_root,
                             capture_output=True,
                             text=True,
-                            timeout=2
+                            timeout=2,
+                            encoding='utf-8',
+                            errors='replace'
                         )
                         if result.returncode == 0 and result.stdout.strip():
                             parts = result.stdout.strip().split()
@@ -398,81 +519,33 @@ class Implementation(SwhidImplementation):
                     except (subprocess.TimeoutExpired, subprocess.CalledProcessError, ValueError):
                         pass
         except Exception:
-            # If Git check fails, fall back to filesystem
             pass
         
-        # Fall back to filesystem permissions (works on Unix, or if Git check failed)
+        # Fall back to filesystem permissions
         if os.path.isdir(source_path):
             for root, dirs, files in os.walk(source_path):
                 for file in files:
                     file_path = os.path.join(root, file)
                     rel_path = os.path.relpath(file_path, source_path)
-                    # Normalize path separators to forward slashes for cross-platform consistency
                     rel_path = rel_path.replace(os.sep, '/')
                     
-                    # Skip if we already got permission from Git index
-                    if rel_path in source_permissions:
-                        continue
-                    
-                    try:
-                        stat_info = os.stat(file_path)
-                        is_executable = bool(stat_info.st_mode & stat.S_IEXEC)
-                        source_permissions[rel_path] = is_executable
-                    except OSError:
-                        source_permissions[rel_path] = False
+                    if rel_path not in source_permissions:
+                        try:
+                            stat_info = os.stat(file_path)
+                            is_executable = bool(stat_info.st_mode & stat.S_IEXEC)
+                            source_permissions[rel_path] = is_executable
+                        except OSError:
+                            source_permissions[rel_path] = False
         elif os.path.isfile(source_path):
-            # Skip if we already got permission from Git index
             if '.' not in source_permissions:
                 try:
                     stat_info = os.stat(source_path)
                     is_executable = bool(stat_info.st_mode & stat.S_IEXEC)
-                    source_permissions['.'] = is_executable  # Single file, use '.' as key
+                    source_permissions['.'] = is_executable
                 except OSError:
                     source_permissions['.'] = False
         
-        # If no executable files found, no need for temp copy
-        if not any(source_permissions.values()):
-            return source_path
-        
-        # Create temporary copy with permissions
-        temp_dir = tempfile.mkdtemp(prefix="swhid-rs-tools-")
-        self._temp_dirs = getattr(self, '_temp_dirs', [])
-        self._temp_dirs.append(temp_dir)
-        
-        if os.path.isdir(source_path):
-            # Copy directory
-            temp_path = os.path.join(temp_dir, os.path.basename(source_path) or "dir")
-            shutil.copytree(source_path, temp_path, symlinks=True)
-            
-            # Apply permissions
-            for rel_path, is_executable in source_permissions.items():
-                target_file = os.path.join(temp_path, rel_path)
-                if os.path.exists(target_file):
-                    try:
-                        current_stat = os.stat(target_file)
-                        if is_executable:
-                            os.chmod(target_file, current_stat.st_mode | stat.S_IEXEC)
-                        else:
-                            os.chmod(target_file, current_stat.st_mode & ~stat.S_IEXEC)
-                    except OSError:
-                        # On Windows, chmod might not work - that's okay
-                        pass
-            
-            return temp_path
-        else:
-            # Copy single file
-            temp_path = os.path.join(temp_dir, os.path.basename(source_path))
-            shutil.copy2(source_path, temp_path)
-            
-            # Apply permission
-            if source_permissions.get('.', False):
-                try:
-                    current_stat = os.stat(temp_path)
-                    os.chmod(temp_path, current_stat.st_mode | stat.S_IEXEC)
-                except OSError:
-                    pass
-            
-            return temp_path
+        return source_permissions
     
     def _detect_content_command_format(self, binary_path: str) -> str:
         """Detect which command format the swhid binary supports for content.
