@@ -183,13 +183,14 @@ class Implementation(SwhidImplementation):
             payload_path, use_git_index = self._ensure_permissions_preserved(payload_path)
             cmd.extend(["dir", payload_path])
             
-            # Use auto-detection which will discover Git repo by walking up
-            # This works even when payload_path is a subdirectory of the Git repo
-            # Auto will use Git index if repo found, otherwise filesystem
-            cmd.extend(["--permissions-source", "auto"])
+            # Use git-index explicitly when we created a Git repo
+            # This is more reliable than auto-detection and ensures we use the Git index
             if use_git_index:
-                logger.info("Using --permissions-source auto (Git repo created, will use Git index)")
+                cmd.extend(["--permissions-source", "git-index"])
+                logger.info("Using --permissions-source git-index (Git repo created with permissions)")
             else:
+                # Use auto-detection (will use Git index if repo found, otherwise filesystem)
+                cmd.extend(["--permissions-source", "auto"])
                 logger.debug("Using --permissions-source auto (will auto-detect)")
         elif obj_type == "snapshot":
             # For snapshot: swhid git snapshot <REPO> [COMMIT]
@@ -431,10 +432,42 @@ class Implementation(SwhidImplementation):
                                 errors='replace'
                             )
                             logger.debug(f"Set executable permission for {git_path} in Git index")
+                            
+                            # Verify the permission was actually set in the index
+                            verify_result = subprocess.run(
+                                ["git", "ls-files", "--stage", git_path],
+                                cwd=repo_path,
+                                capture_output=True,
+                                text=True,
+                                encoding='utf-8',
+                                errors='replace'
+                            )
+                            if verify_result.returncode == 0 and verify_result.stdout.strip():
+                                parts = verify_result.stdout.strip().split()
+                                if parts and parts[0] == '100755':
+                                    logger.debug(f"Verified: {git_path} has mode 100755 in Git index")
+                                else:
+                                    logger.warning(f"Warning: {git_path} mode is {parts[0] if parts else 'unknown'}, expected 100755")
                         except subprocess.CalledProcessError as e:
                             # Log the error for debugging
                             logger.warning(f"Failed to set executable permission for {git_path}: {e.stderr}")
                             pass
+            
+            # Refresh the Git index to ensure all changes are written to disk
+            # This is important for swhid-rs to read the updated permissions
+            try:
+                subprocess.run(
+                    ["git", "update-index", "--refresh"],
+                    cwd=repo_path,
+                    check=True,
+                    capture_output=True,
+                    encoding='utf-8',
+                    errors='replace'
+                )
+                logger.debug("Refreshed Git index")
+            except subprocess.CalledProcessError:
+                # Non-critical, but log it
+                logger.debug("Git index refresh failed (non-critical)")
             
             # Return the repo root path - swhid-rs can find .git here
             return repo_path, True
@@ -678,8 +711,8 @@ class Implementation(SwhidImplementation):
                         logger.debug("Detected published version (--file flag works)")
                         return output.split('\n')[0].strip()
             except (subprocess.TimeoutExpired, FileNotFoundError, Exception):
-                pass
-        
+                    pass
+            
         return None
     
     def _get_project_root(self) -> Optional[str]:
