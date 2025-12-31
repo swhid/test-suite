@@ -279,8 +279,18 @@ jobs:
           elif [ "$RUNNER_OS" == "macOS" ]; then
             brew install libgit2 pkg-config openssl 2>&1 | grep -vE "(Warning:.*is already installed|To reinstall)" || true
           elif [ "$RUNNER_OS" == "Windows" ]; then
-            choco install -y vcpkg
-            vcpkg install libgit2:x64-windows
+            # On Windows, libgit2 is optional - pygit2 can work without it in some cases
+            # Try to install via vcpkg, but don't fail if it doesn't work
+            if command -v choco &> /dev/null; then
+              choco install -y vcpkg || echo "Warning: vcpkg installation failed, continuing without libgit2"
+              if command -v vcpkg &> /dev/null; then
+                vcpkg install libgit2:x64-windows || echo "Warning: libgit2 installation failed, continuing without it"
+              else
+                echo "Warning: vcpkg not in PATH, libgit2 may not be available"
+              fi
+            else
+              echo "Warning: Chocolatey not available, libgit2 may not be available"
+            fi
           fi
         continue-on-error: true
       
