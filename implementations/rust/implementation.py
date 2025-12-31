@@ -361,6 +361,7 @@ class Implementation(SwhidImplementation):
         )
         
         # Configure Git for SWHID testing (preserve line endings and permissions)
+        # This matches the configuration used by git-cmd implementation
         subprocess.run(
             ["git", "config", "core.autocrlf", "false"],
             cwd=repo_path,
@@ -371,6 +372,14 @@ class Implementation(SwhidImplementation):
         )
         subprocess.run(
             ["git", "config", "core.filemode", "true"],
+            cwd=repo_path,
+            check=True,
+            capture_output=True,
+            encoding='utf-8',
+            errors='replace'
+        )
+        subprocess.run(
+            ["git", "config", "core.precomposeunicode", "false"],
             cwd=repo_path,
             check=True,
             capture_output=True,
@@ -404,22 +413,28 @@ class Implementation(SwhidImplementation):
             )
             
             # Apply executable permissions to Git index
+            # This must be done after git add, and paths must be relative to repo root
             for rel_path, is_executable in source_permissions.items():
                 if is_executable:
                     # Path relative to source directory, which is now relative to repo root
                     git_path = rel_path.replace(os.sep, '/')
-                    try:
-                        subprocess.run(
-                            ["git", "update-index", "--chmod=+x", git_path],
-                            cwd=repo_path,
-                            check=True,
-                            capture_output=True,
-                            encoding='utf-8',
-                            errors='replace'
-                        )
-                    except subprocess.CalledProcessError:
-                        # If update-index fails, continue (file might not be in index)
-                        pass
+                    # Verify file exists in repo before trying to set permission
+                    file_path = os.path.join(repo_path, git_path)
+                    if os.path.exists(file_path):
+                        try:
+                            result = subprocess.run(
+                                ["git", "update-index", "--chmod=+x", git_path],
+                                cwd=repo_path,
+                                check=True,
+                                capture_output=True,
+                                encoding='utf-8',
+                                errors='replace'
+                            )
+                            logger.debug(f"Set executable permission for {git_path} in Git index")
+                        except subprocess.CalledProcessError as e:
+                            # Log the error for debugging
+                            logger.warning(f"Failed to set executable permission for {git_path}: {e.stderr}")
+                            pass
             
             # Return the repo root path - swhid-rs can find .git here
             return repo_path, True
