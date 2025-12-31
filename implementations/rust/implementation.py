@@ -183,14 +183,14 @@ class Implementation(SwhidImplementation):
             payload_path, use_git_index = self._ensure_permissions_preserved(payload_path)
             cmd.extend(["dir", payload_path])
             
-            # Use git-index permission source if we created a Git repo
+            # Use auto-detection which will discover Git repo by walking up
+            # This works even when payload_path is a subdirectory of the Git repo
+            # Auto will use Git index if repo found, otherwise filesystem
+            cmd.extend(["--permissions-source", "auto"])
             if use_git_index:
-                cmd.extend(["--permissions-source", "git-index"])
-                logger.info("Using --permissions-source git-index for directory computation")
+                logger.info("Using --permissions-source auto (Git repo created, will use Git index)")
             else:
-                # Use auto-detection (will use Git index if repo found, otherwise filesystem)
-                cmd.extend(["--permissions-source", "auto"])
-                logger.debug("Using --permissions-source auto for directory computation")
+                logger.debug("Using --permissions-source auto (will auto-detect)")
         elif obj_type == "snapshot":
             # For snapshot: swhid git snapshot <REPO> [COMMIT]
             # Note: requires --features git, so we need to ensure binary was built with git feature
@@ -378,15 +378,24 @@ class Implementation(SwhidImplementation):
             errors='replace'
         )
         
-        # Copy directory or file into repo
+        # Copy directory or file directly into repo root
+        # swhid-rs with --permissions-source git-index uses Repository::open(root)
+        # which expects root to be the repository root (where .git is)
+        # So we copy files directly into repo root and pass repo_path to swhid-rs
         if os.path.isdir(source_path):
-            # Copy directory contents
-            target_path = os.path.join(repo_path, "target")
-            shutil.copytree(source_path, target_path, symlinks=True)
+            # Copy directory contents directly into repo root (not a subdirectory)
+            # This way, when we pass repo_path to swhid-rs, it can find .git immediately
+            for item in os.listdir(source_path):
+                src_item = os.path.join(source_path, item)
+                dst_item = os.path.join(repo_path, item)
+                if os.path.isdir(src_item):
+                    shutil.copytree(src_item, dst_item, symlinks=True)
+                else:
+                    shutil.copy2(src_item, dst_item)
             
             # Add all files to Git index
             subprocess.run(
-                ["git", "add", "target"],
+                ["git", "add", "."],
                 cwd=repo_path,
                 check=True,
                 capture_output=True,
@@ -397,10 +406,8 @@ class Implementation(SwhidImplementation):
             # Apply executable permissions to Git index
             for rel_path, is_executable in source_permissions.items():
                 if is_executable:
-                    # Path relative to source directory, but we need path relative to repo
-                    git_path = os.path.join("target", rel_path)
-                    # Normalize for Git (use forward slashes)
-                    git_path = git_path.replace(os.sep, '/')
+                    # Path relative to source directory, which is now relative to repo root
+                    git_path = rel_path.replace(os.sep, '/')
                     try:
                         subprocess.run(
                             ["git", "update-index", "--chmod=+x", git_path],
@@ -414,7 +421,8 @@ class Implementation(SwhidImplementation):
                         # If update-index fails, continue (file might not be in index)
                         pass
             
-            return target_path, True
+            # Return the repo root path - swhid-rs can find .git here
+            return repo_path, True
         else:
             # Copy single file
             target_file = os.path.join(repo_path, os.path.basename(source_path))
