@@ -700,29 +700,15 @@ jobs:
           set -e
         continue-on-error: true
       
-      - name: Log cache replacement
+      - name: Upload swhid-rs build artifacts (if rebuilt)
         if: always() && steps.swhid-rs-setup.outcome == 'success' && steps.swhid-rs-setup.outputs.swhid_rs_rebuilt == 'true'
-        shell: bash
-        run: |
-          if [ -f /tmp/swhid-rs/target/.swhid-rs-commit ]; then
-            SAVED_COMMIT=$(cat /tmp/swhid-rs/target/.swhid-rs-commit 2>/dev/null || echo "unknown")
-            echo "💾 Replacing cache: Saving new binary for commit ${SAVED_COMMIT:0:7}"
-            echo "This will replace the old cache entry with key: swhid-rs-${{ runner.os }}-stable"
-          else
-            echo "⚠️ Warning: Commit marker not found, but proceeding with cache save"
-          fi
-        continue-on-error: true
-      
-      - name: Save swhid-rs build cache (with commit marker)
-        if: always() && steps.swhid-rs-setup.outcome == 'success' && steps.swhid-rs-setup.outputs.swhid_rs_rebuilt == 'true'
-        uses: actions/cache/save@v4
+        uses: actions/upload-artifact@v4
         continue-on-error: true
         with:
+          name: swhid-rs-target-${{ matrix.os == 'ubuntu-24.04' && 'Linux' || matrix.os == 'macos-14' && 'macOS' || 'Windows' }}
           path: /tmp/swhid-rs/target
-          # Use the same generic key to replace the old cache entry
-          # This ensures the commit marker is saved and old cache is replaced
-          # Note: Each OS saves its own cache, so no race condition here
-          key: swhid-rs-${{ runner.os }}-stable
+          retention-days: 1
+          if-no-files-found: ignore
       
       - name: Run harness unit tests
         run: |
@@ -783,8 +769,54 @@ jobs:
             echo "| Note | No results file (harness tests may have been skipped) |" >> $GITHUB_STEP_SUMMARY
           fi
 
-  publish-dashboard:
+  save-cache:
     needs: [check-changes, test]
+    if: always() && needs.check-changes.outputs.changes_detected == 'true'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        os_name: [Linux, macOS, Windows]
+    steps:
+      - name: Download swhid-rs build artifacts for ${{ matrix.os_name }}
+        id: download-artifacts
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: swhid-rs-target-${{ matrix.os_name }}
+          path: /tmp/swhid-rs-cache
+      
+      - name: Check artifact structure for ${{ matrix.os_name }}
+        if: steps.download-artifacts.outcome == 'success'
+        shell: bash
+        run: |
+          echo "Checking artifact structure for ${{ matrix.os_name }}..."
+          ls -la /tmp/swhid-rs-cache/ || true
+          find /tmp/swhid-rs-cache -type f -name "swhid" | head -5 || true
+          find /tmp/swhid-rs-cache -type f -name ".swhid-rs-commit" | head -5 || true
+        continue-on-error: true
+      
+      - name: Save swhid-rs build cache for ${{ matrix.os_name }}
+        if: steps.download-artifacts.outcome == 'success'
+        uses: actions/cache/save@v4
+        continue-on-error: true
+        with:
+          # The artifact contains /tmp/swhid-rs/target, so when downloaded it may be at
+          # /tmp/swhid-rs-cache/target or /tmp/swhid-rs-cache depending on artifact structure
+          # Try both paths - cache action will use whichever exists
+          path: |
+            /tmp/swhid-rs-cache/target
+            /tmp/swhid-rs-cache
+          # Use the same generic key to replace the old cache entry
+          # This ensures the commit marker is saved and old cache is replaced
+          # Only one job saves per OS per workflow, eliminating race conditions
+          key: swhid-rs-${{ matrix.os_name }}-stable
+
+
+  publish-dashboard:
+    needs: [check-changes, test, save-cache]
     if: github.ref == 'refs/heads/main' && needs.check-changes.outputs.changes_detected == 'true'
     runs-on: ubuntu-24.04
     permissions:

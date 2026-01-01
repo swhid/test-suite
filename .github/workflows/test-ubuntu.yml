@@ -474,30 +474,15 @@ jobs:
           set -e
         continue-on-error: true
       
-      - name: Log cache replacement
-        if: always() && steps.swhid-rs-setup.outcome == 'success' && steps.swhid-rs-setup.outputs.swhid_rs_rebuilt == 'true' && (matrix.python-version == '3.12' || matrix.python-version == '')
-        shell: bash
-        run: |
-          if [ -f /tmp/swhid-rs/target/.swhid-rs-commit ]; then
-            SAVED_COMMIT=$(cat /tmp/swhid-rs/target/.swhid-rs-commit 2>/dev/null || echo "unknown")
-            echo "💾 Replacing cache: Saving new binary for commit ${SAVED_COMMIT:0:7}"
-            echo "This will replace the old cache entry with key: swhid-rs-${{ runner.os }}-stable"
-            echo "Note: Only Python 3.12 job saves cache to avoid race conditions"
-          else
-            echo "⚠️ Warning: Commit marker not found, but proceeding with cache save"
-          fi
-        continue-on-error: true
-      
-      - name: Save swhid-rs build cache (with commit marker)
-        if: always() && steps.swhid-rs-setup.outcome == 'success' && steps.swhid-rs-setup.outputs.swhid_rs_rebuilt == 'true' && (matrix.python-version == '3.12' || matrix.python-version == '')
-        uses: actions/cache/save@v4
+      - name: Upload swhid-rs build artifacts (if rebuilt)
+        if: always() && steps.swhid-rs-setup.outcome == 'success' && steps.swhid-rs-setup.outputs.swhid_rs_rebuilt == 'true'
+        uses: actions/upload-artifact@v4
         continue-on-error: true
         with:
+          name: swhid-rs-target-Linux
           path: /tmp/swhid-rs/target
-          # Use the same generic key to replace the old cache entry
-          # This ensures the commit marker is saved and old cache is replaced
-          # Only save from Python 3.12 job to avoid race conditions when multiple jobs run in parallel
-          key: swhid-rs-${{ runner.os }}-stable
+          retention-days: 1
+          if-no-files-found: ignore
       
       - name: Run harness unit tests
         run: |
@@ -557,3 +542,44 @@ jobs:
             echo "| Note | No results file (harness tests may have been skipped) |" >> $GITHUB_STEP_SUMMARY
           fi
 
+
+  save-cache:
+    runs-on: ubuntu-24.04
+    needs: test
+    if: always()
+    permissions:
+      contents: read
+    steps:
+      - name: Download swhid-rs build artifacts
+        id: download-artifacts
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: swhid-rs-target-Linux
+          path: /tmp/swhid-rs-cache
+      
+      - name: Check artifact structure
+        if: steps.download-artifacts.outcome == 'success'
+        shell: bash
+        run: |
+          echo "Checking artifact structure..."
+          ls -la /tmp/swhid-rs-cache/ || true
+          find /tmp/swhid-rs-cache -type f -name "swhid" | head -5 || true
+          find /tmp/swhid-rs-cache -type f -name ".swhid-rs-commit" | head -5 || true
+        continue-on-error: true
+      
+      - name: Save swhid-rs build cache
+        if: steps.download-artifacts.outcome == 'success'
+        uses: actions/cache/save@v4
+        continue-on-error: true
+        with:
+          # The artifact contains /tmp/swhid-rs/target, so when downloaded it may be at
+          # /tmp/swhid-rs-cache/target or /tmp/swhid-rs-cache depending on artifact structure
+          # Try both paths - cache action will use whichever exists
+          path: |
+            /tmp/swhid-rs-cache/target
+            /tmp/swhid-rs-cache
+          # Use the same generic key to replace the old cache entry
+          # This ensures the commit marker is saved and old cache is replaced
+          # Only one job saves per workflow, eliminating race conditions
+          key: swhid-rs-Linux-stable
