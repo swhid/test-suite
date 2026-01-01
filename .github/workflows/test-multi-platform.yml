@@ -618,6 +618,7 @@ jobs:
               # We check for the binary AND verify it was built from the same commit
               CACHED_COMMIT_FILE="target/.swhid-rs-commit"
               NEED_REBUILD=true
+              REBUILT=false
               
               if [ -d target/release ] && [ -f target/release/swhid ]; then
                 if [ -f "$CACHED_COMMIT_FILE" ]; then
@@ -641,6 +642,7 @@ jobs:
                 cargo build --release 2>&1 | tee /tmp/swhid-rs-build.log
                 BUILD_EXIT_CODE=${PIPESTATUS[0]}
                 if [ $BUILD_EXIT_CODE -eq 0 ]; then
+                  REBUILT=true
                   # Save the commit hash for future cache validation
                   # Ensure target directory exists and write commit marker
                   mkdir -p target
@@ -654,6 +656,9 @@ jobs:
                   fi
                 fi
               fi
+              
+              # Set output to indicate if we rebuilt (needed for cache save step)
+              echo "swhid_rs_rebuilt=${REBUILT}" >> $GITHUB_OUTPUT
               if [ $BUILD_EXIT_CODE -eq 0 ]; then
                 echo "swhid-rs built successfully"
                 echo "SWHID_RS_PATH=/tmp/swhid-rs" >> $GITHUB_ENV
@@ -687,7 +692,7 @@ jobs:
         continue-on-error: true
       
       - name: Save swhid-rs build cache (with commit marker)
-        if: always() && steps.swhid-rs-setup.outcome == 'success'
+        if: always() && steps.swhid-rs-setup.outcome == 'success' && steps.swhid-rs-setup.outputs.swhid_rs_rebuilt == 'true'
         uses: actions/cache@v4
         continue-on-error: true
         with:
