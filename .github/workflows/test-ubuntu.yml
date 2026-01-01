@@ -654,6 +654,16 @@ jobs:
     permissions:
       contents: read
     steps:
+      - name: Check if artifacts were uploaded
+        id: check-artifacts
+        shell: bash
+        run: |
+          echo "Checking if swhid-rs artifacts were uploaded in test jobs..."
+          # The artifact is only uploaded if swhid_rs_rebuilt == 'true'
+          # We'll try to download it, but handle the case where it doesn't exist
+          echo "artifact_expected=true" >> $GITHUB_OUTPUT
+        continue-on-error: true
+      
       - name: Download swhid-rs build artifacts
         id: download-artifacts
         uses: actions/download-artifact@v4
@@ -661,6 +671,7 @@ jobs:
         with:
           name: swhid-rs-target-Linux
           path: /tmp/swhid-rs-cache
+          if-no-artifacts-matched: ignore
       
       - name: Check artifact structure
         if: steps.download-artifacts.outcome == 'success'

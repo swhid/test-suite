@@ -1005,6 +1005,7 @@ jobs:
         with:
           name: swhid-rs-target-${{ matrix.os_name }}
           path: /tmp/swhid-rs-cache
+          if-no-artifacts-matched: ignore
       
       - name: Check artifact structure for ${{ matrix.os_name }}
         if: steps.download-artifacts.outcome == 'success'
