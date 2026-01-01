@@ -686,6 +686,16 @@ jobs:
           set -e
         continue-on-error: true
       
+      - name: Save swhid-rs build cache (with commit marker)
+        if: always() && steps.swhid-rs-setup.outcome == 'success'
+        uses: actions/cache@v4
+        continue-on-error: true
+        with:
+          path: /tmp/swhid-rs/target
+          key: swhid-rs-${{ runner.os }}-stable
+          restore-keys: |
+            swhid-rs-${{ runner.os }}-
+      
       - name: Run harness unit tests
         run: |
           pytest tests/unit/ tests/integration/ -v --tb=short
