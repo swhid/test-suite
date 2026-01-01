@@ -116,6 +116,28 @@ Test files with CRLF or mixed line endings are preserved as-is. The implementati
 - Reads content files in binary mode and passes via stdin
 - Creates temporary copies with preserved permissions on Windows
 
+**Known Windows Limitations (6 failures):**
+
+1. **Line Ending Handling** (2 failures):
+   - `crlf_line_endings`: Ruby normalizes CRLF to LF, producing different SWHID
+   - `mixed_line_endings`: Ruby normalizes mixed line endings, producing different SWHID
+   - **Root Cause**: The `swhid` gem likely normalizes line endings when reading files, while the SWHID spec requires preserving original line endings as part of content.
+
+2. **Binary File Handling** (1 failure):
+   - `binary_file`: Ruby produces different SWHID for binary content
+   - **Root Cause**: Ruby may be applying text mode encoding/transcoding when reading binary files.
+
+3. **File Permissions** (2 failures):
+   - `permissions_dir`: Ruby cannot detect/preserve Unix-style executable permissions on Windows
+   - `comprehensive_permissions`: Same issue with various permission combinations
+   - **Root Cause**: Ruby's `swhid` gem on Windows likely cannot read permissions from Git index or detect executable bits, defaulting to non-executable for all files.
+
+4. **Symlink Handling** (1 failure):
+   - `mixed_types`: Ruby produces different SWHID for directories containing symlinks
+   - **Root Cause**: Ruby may be following symlinks instead of preserving them, or handling symlink targets differently on Windows.
+
+**Note**: These limitations are in the upstream `swhid` gem and would need to be fixed there, similar to how we fixed Rust by using Git index for permissions and preserving symlinks explicitly.
+
 ### Python Implementation
 
 - Uses `swh.model.cli` module
