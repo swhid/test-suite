@@ -24,6 +24,17 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: 3.12
+          cache: 'pip'  # Automatically cache pip packages
+      
+      - name: Cache pip packages (additional)
+        uses: actions/cache@v4
+        continue-on-error: true
+        with:
+          path: |
+            ~/.cache/pip
+          key: pip-${{ runner.os }}-3.12-${{ hashFiles('pyproject.toml') }}
+          restore-keys: |
+            pip-${{ runner.os }}-3.12-
       
       - name: Install Software Heritage Python tools
         shell: bash
@@ -672,6 +683,17 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: 3.12
+          cache: 'pip'  # Automatically cache pip packages
+      
+      - name: Cache pip packages (additional)
+        uses: actions/cache@v4
+        continue-on-error: true
+        with:
+          path: |
+            ~/.cache/pip
+          key: pip-${{ runner.os }}-3.12-${{ hashFiles('pyproject.toml') }}
+          restore-keys: |
+            pip-${{ runner.os }}-3.12-
       
       - name: Install dependencies
         run: |
