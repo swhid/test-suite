@@ -334,8 +334,16 @@ jobs:
                 BUILD_EXIT_CODE=${PIPESTATUS[0]}
                 if [ $BUILD_EXIT_CODE -eq 0 ]; then
                   # Save the commit hash for future cache validation
+                  # Ensure target directory exists and write commit marker
+                  mkdir -p target
                   echo "$SWHID_RS_COMMIT" > "$CACHED_COMMIT_FILE"
-                  echo "Build completed successfully, saved commit marker"
+                  echo "Build completed successfully, saved commit marker to $CACHED_COMMIT_FILE"
+                  # Verify the file was written
+                  if [ -f "$CACHED_COMMIT_FILE" ]; then
+                    echo "Commit marker verified: $(cat "$CACHED_COMMIT_FILE")"
+                  else
+                    echo "WARNING: Commit marker file was not created!"
+                  fi
                 fi
               fi
               if [ $BUILD_EXIT_CODE -eq 0 ]; then
