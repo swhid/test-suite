@@ -503,7 +503,8 @@ jobs:
           set +e  # Temporarily disable exit on error for detection logic
           
           # Method 1: Use gem env to get executable directory
-          GEM_BIN_DIR=$(gem env 2>/dev/null | grep -E "EXECUTABLE DIRECTORY" | sed 's/.*: *//' 2>/dev/null | head -1 || echo "")
+          # On Windows, gem env outputs paths with forward slashes, handle both formats
+          GEM_BIN_DIR=$(gem env 2>/dev/null | grep -E "EXECUTABLE DIRECTORY" | sed -E 's/.*EXECUTABLE DIRECTORY[^:]*: *//' 2>/dev/null | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | head -1 || echo "")
           
           # Method 2: Try Gem.user_dir
           if [ -z "$GEM_BIN_DIR" ] || [ ! -d "$GEM_BIN_DIR" ]; then
