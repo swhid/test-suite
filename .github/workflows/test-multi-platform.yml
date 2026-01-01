@@ -499,12 +499,11 @@ jobs:
       
       - name: Cache swhid-rs build artifacts
         id: cache-swhid-rs
-        uses: actions/cache@v4
+        uses: actions/cache/restore@v4
         continue-on-error: true
         with:
           # Use /tmp/swhid-rs/target - works on all platforms with bash shell
           # Cache key includes runner.os, so each platform has its own cache
-          # We use a generic key for restore, then update to commit-specific key after clone
           path: /tmp/swhid-rs/target
           key: swhid-rs-${{ runner.os }}-stable
           restore-keys: |
@@ -693,15 +692,13 @@ jobs:
       
       - name: Save swhid-rs build cache (with commit marker)
         if: always() && steps.swhid-rs-setup.outcome == 'success' && steps.swhid-rs-setup.outputs.swhid_rs_rebuilt == 'true'
-        uses: actions/cache@v4
+        uses: actions/cache/save@v4
         continue-on-error: true
         with:
           path: /tmp/swhid-rs/target
-          # Use commit-specific key to allow saving even if generic key was a hit
-          # This ensures the commit marker is saved
-          key: ${{ steps.swhid-rs-setup.outputs.swhid_rs_cache_key }}
-          restore-keys: |
-            swhid-rs-${{ runner.os }}-
+          # Use the same generic key to replace the old cache entry
+          # This ensures the commit marker is saved and old cache is replaced
+          key: swhid-rs-${{ runner.os }}-stable
       
       - name: Run harness unit tests
         run: |
