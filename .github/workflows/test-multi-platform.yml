@@ -513,11 +513,15 @@ jobs:
         continue-on-error: true
         with:
           # Use /tmp/swhid-rs/target - works on all platforms with bash shell
-          # Cache key includes runner.os, so each platform has its own cache
+          # Try workflow-specific cache first, then fall back to generic cache
+          # This allows both workflows to share caches while avoiding save conflicts
           path: /tmp/swhid-rs/target
-          key: swhid-rs-${{ runner.os }}-stable
+          key: swhid-rs-${{ runner.os == 'Linux' && 'Linux' || runner.os == 'macOS' && 'macOS' || 'Windows' }}-stable-multi-platform-workflow
           restore-keys: |
-            swhid-rs-${{ runner.os }}-
+            swhid-rs-${{ runner.os == 'Linux' && 'Linux' || runner.os == 'macOS' && 'macOS' || 'Windows' }}-stable-multi-platform-workflow
+            swhid-rs-${{ runner.os == 'Linux' && 'Linux' || runner.os == 'macOS' && 'macOS' || 'Windows' }}-stable-ubuntu-workflow
+            swhid-rs-${{ runner.os == 'Linux' && 'Linux' || runner.os == 'macOS' && 'macOS' || 'Windows' }}-stable
+            swhid-rs-${{ runner.os == 'Linux' && 'Linux' || runner.os == 'macOS' && 'macOS' || 'Windows' }}-
       
       - name: Setup SSH for private repository access (optional)
         shell: bash
@@ -700,25 +704,36 @@ jobs:
           set -e
         continue-on-error: true
       
-      - name: Verify commit marker exists before upload
+      - name: Ensure commit marker exists before upload
         if: always() && steps.swhid-rs-setup.outcome == 'success' && steps.swhid-rs-setup.outputs.swhid_rs_rebuilt == 'true'
         shell: bash
         run: |
-          echo "Verifying commit marker exists..."
-          if [ -f /tmp/swhid-rs/target/.swhid-rs-commit ]; then
-            echo "✅ Commit marker found: $(cat /tmp/swhid-rs/target/.swhid-rs-commit)"
-            ls -la /tmp/swhid-rs/target/.swhid-rs-commit
+          echo "Ensuring commit marker exists in target directory..."
+          cd /tmp/swhid-rs
+          
+          # Get commit hash
+          SWHID_RS_COMMIT=$(git rev-parse HEAD 2>/dev/null || echo "unknown")
+          echo "Current swhid-rs commit: ${SWHID_RS_COMMIT:0:7}"
+          
+          # Ensure target directory exists
+          mkdir -p target
+          
+          # Create/update commit marker
+          echo "$SWHID_RS_COMMIT" > target/.swhid-rs-commit
+          
+          # Verify it was created
+          if [ -f target/.swhid-rs-commit ]; then
+            echo "✅ Commit marker created/verified: $(cat target/.swhid-rs-commit)"
+            ls -la target/.swhid-rs-commit
+            echo "File size: $(stat -c%s target/.swhid-rs-commit 2>/dev/null || stat -f%z target/.swhid-rs-commit 2>/dev/null || echo 'unknown') bytes"
           else
-            echo "⚠️ WARNING: Commit marker not found at /tmp/swhid-rs/target/.swhid-rs-commit"
-            echo "Listing target directory contents:"
-            ls -la /tmp/swhid-rs/target/ | head -20 || true
-            echo "Creating commit marker now..."
-            cd /tmp/swhid-rs
-            SWHID_RS_COMMIT=$(git rev-parse HEAD 2>/dev/null || echo "unknown")
-            mkdir -p target
-            echo "$SWHID_RS_COMMIT" > target/.swhid-rs-commit
-            echo "Created commit marker: $(cat target/.swhid-rs-commit)"
+            echo "❌ ERROR: Failed to create commit marker!"
+            exit 1
           fi
+          
+          # List target directory to verify structure
+          echo "Target directory contents (first 10 entries):"
+          ls -la target/ | head -12 || true
         continue-on-error: true
       
       - name: Upload swhid-rs build artifacts (if rebuilt)
@@ -830,10 +845,10 @@ jobs:
           path: |
             /tmp/swhid-rs-cache/target
             /tmp/swhid-rs-cache
-          # Use the same generic key to replace the old cache entry
-          # This ensures the commit marker is saved and old cache is replaced
-          # Only one job saves per OS per workflow, eliminating race conditions
-          key: swhid-rs-${{ matrix.os_name }}-stable
+          # Use workflow-specific cache key to avoid conflicts when multiple workflows run simultaneously
+          # Both workflows can save their own cache, and both can restore from either cache
+          # This eliminates race conditions across workflows
+          key: swhid-rs-${{ matrix.os_name }}-stable-multi-platform-workflow
 
 
   publish-dashboard:
