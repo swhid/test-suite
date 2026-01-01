@@ -34,6 +34,8 @@ class Implementation(SwhidImplementation):
                 ["git", "--version"],
                 capture_output=True,
                 text=True,
+                encoding='utf-8',
+                errors='replace',
                 timeout=5
             )
             return result.returncode == 0
@@ -90,6 +92,8 @@ class Implementation(SwhidImplementation):
                 ["git", "hash-object", "--no-filters", file_path],
                 capture_output=True,
                 text=True,
+                encoding='utf-8',
+                errors='replace',
                 check=True
             )
             blob_id = result.stdout.strip()
@@ -147,6 +151,8 @@ class Implementation(SwhidImplementation):
                                     cwd=repo_root,
                                     capture_output=True,
                                     text=True,
+                                    encoding='utf-8',
+                                    errors='replace',
                                     timeout=2
                                 )
                                 if result.returncode == 0 and result.stdout.strip():
@@ -268,6 +274,8 @@ class Implementation(SwhidImplementation):
                 cwd=repo_path,
                 capture_output=True,
                 text=True,
+                encoding='utf-8',
+                errors='replace',
                 check=True
             )
             tree_id = result.stdout.strip()
@@ -286,6 +294,8 @@ class Implementation(SwhidImplementation):
             cwd=repo_path,
             capture_output=True,
             text=True,
+            encoding='utf-8',
+            errors='replace',
             check=True
         )
         commit_id = result.stdout.strip()
@@ -304,6 +314,8 @@ class Implementation(SwhidImplementation):
             cwd=repo_path,
             capture_output=True,
             text=True,
+            encoding='utf-8',
+            errors='replace',
             check=True
         )
         tag_type = result.stdout.strip()
@@ -315,6 +327,8 @@ class Implementation(SwhidImplementation):
                 cwd=repo_path,
                 capture_output=True,
                 text=True,
+                encoding='utf-8',
+                errors='replace',
                 check=True
             )
             tag_id = result.stdout.strip()
