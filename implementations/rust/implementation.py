@@ -206,7 +206,9 @@ class Implementation(SwhidImplementation):
             try:
                 self._diagnose_snapshot_branches(payload_path, binary_path)
             except Exception as e:
-                logger.debug(f"Snapshot diagnosis failed (non-critical): {e}")
+                logger.warning(f"Snapshot diagnosis failed (non-critical): {e}")
+                import traceback
+                logger.debug(traceback.format_exc())
             
             cmd.extend(["git", "snapshot", payload_path])
         elif obj_type == "revision":
