@@ -326,6 +326,8 @@ jobs:
           path: |
             ~/.gem/ruby
             ~/.local/share/gem
+            /opt/hostedtoolcache/Ruby/*/x64/lib/ruby/gems
+            ${{ runner.toolCache }}/Ruby/*/x64/lib/ruby/gems
           key: swhid-gem-${{ runner.os }}-ruby-3.2-${{ hashFiles('**/Gemfile.lock') }}
           restore-keys: |
             swhid-gem-${{ runner.os }}-ruby-3.2-
