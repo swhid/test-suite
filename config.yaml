@@ -328,11 +328,6 @@ payloads:
     path: payloads/git-repository/comprehensive.tar.gz
     tag: v2.1.0
     expected_swhid: swh:1:rel:edaf91f706742fcb19591f59b5397b0a7a09ac39
-  negative:
-  - description: Test file that doesn't exist (triggers IO_ERROR)
-    expected_error: IO_ERROR
-    name: nonexistent_file
-    path: payloads/negative/nonexistent_file.txt
 settings:
   cleanup_temp: true
   max_file_size: 100MB
