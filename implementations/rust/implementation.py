@@ -160,10 +160,10 @@ class Implementation(SwhidImplementation):
         if obj_type is None:
             obj_type = self.detect_object_type(payload_path)
         
-        # Get project root (should be /home/dicosmo/code/swhid-rs)
+        # Get project root
         project_root = self._get_project_root()
         if not project_root:
-            raise RuntimeError("Could not find Rust project root (/home/dicosmo/code/swhid-rs)")
+            raise RuntimeError("Could not find Rust project root. Set SWHID_RS_PATH environment variable or ensure swhid-rs project is accessible.")
         
         # Determine if we need git feature
         # Directory operations may need git feature for --permissions-source git-index

@@ -16,9 +16,11 @@ class TestRustV2Support:
     
     @patch('implementations.rust.implementation.subprocess.run')
     @patch.object(Implementation, '_ensure_binary_built')
-    def test_compute_swhid_v1_default(self, mock_ensure_binary, mock_subprocess):
+    @patch.object(Implementation, '_get_project_root')
+    def test_compute_swhid_v1_default(self, mock_get_project_root, mock_ensure_binary, mock_subprocess):
         """Test that compute_swhid defaults to v1 (no flags)."""
         # Setup mocks
+        mock_get_project_root.return_value = "/fake/project/root"
         mock_ensure_binary.return_value = "/path/to/swhid"
         
         mock_result = Mock()
@@ -52,7 +54,8 @@ class TestRustV2Support:
     
     @patch('implementations.rust.implementation.subprocess.run')
     @patch.object(Implementation, '_ensure_binary_built')
-    def test_compute_swhid_v2_sha256(self, mock_ensure_binary, mock_subprocess):
+    @patch.object(Implementation, '_get_project_root')
+    def test_compute_swhid_v2_sha256(self, mock_get_project_root, mock_ensure_binary, mock_subprocess):
         """Test that compute_swhid adds --version 2 --hash sha256 flags when specified."""
         # Setup mocks
         mock_ensure_binary.return_value = "/path/to/swhid"
@@ -97,9 +100,11 @@ class TestRustV2Support:
     
     @patch('implementations.rust.implementation.subprocess.run')
     @patch.object(Implementation, '_ensure_binary_built')
-    def test_compute_swhid_v2_only(self, mock_ensure_binary, mock_subprocess):
+    @patch.object(Implementation, '_get_project_root')
+    def test_compute_swhid_v2_only(self, mock_get_project_root, mock_ensure_binary, mock_subprocess):
         """Test that compute_swhid adds --version 2 but not --hash when only version specified."""
         # Setup mocks
+        mock_get_project_root.return_value = "/fake/project/root"
         mock_ensure_binary.return_value = "/path/to/swhid"
         
         mock_result = Mock()
@@ -134,9 +139,11 @@ class TestRustV2Support:
     
     @patch('implementations.rust.implementation.subprocess.run')
     @patch.object(Implementation, '_ensure_binary_built')
-    def test_compute_swhid_sha256_only(self, mock_ensure_binary, mock_subprocess):
+    @patch.object(Implementation, '_get_project_root')
+    def test_compute_swhid_sha256_only(self, mock_get_project_root, mock_ensure_binary, mock_subprocess):
         """Test that compute_swhid adds --hash sha256 but not --version when only hash specified."""
         # Setup mocks
+        mock_get_project_root.return_value = "/fake/project/root"
         mock_ensure_binary.return_value = "/path/to/swhid"
         
         mock_result = Mock()
@@ -171,9 +178,11 @@ class TestRustV2Support:
     
     @patch('implementations.rust.implementation.subprocess.run')
     @patch.object(Implementation, '_ensure_binary_built')
-    def test_compute_swhid_backward_compatibility(self, mock_ensure_binary, mock_subprocess):
+    @patch.object(Implementation, '_get_project_root')
+    def test_compute_swhid_backward_compatibility(self, mock_get_project_root, mock_ensure_binary, mock_subprocess):
         """Test that compute_swhid maintains backward compatibility (no version/hash params)."""
         # Setup mocks
+        mock_get_project_root.return_value = "/fake/project/root"
         mock_ensure_binary.return_value = "/path/to/swhid"
         
         mock_result = Mock()
@@ -206,9 +215,11 @@ class TestRustV2Support:
     
     @patch('implementations.rust.implementation.subprocess.run')
     @patch.object(Implementation, '_ensure_binary_built')
-    def test_compute_swhid_directory_v2(self, mock_ensure_binary, mock_subprocess):
+    @patch.object(Implementation, '_get_project_root')
+    def test_compute_swhid_directory_v2(self, mock_get_project_root, mock_ensure_binary, mock_subprocess):
         """Test that directory computation works with v2/SHA256."""
         # Setup mocks
+        mock_get_project_root.return_value = "/fake/project/root"
         mock_ensure_binary.return_value = "/path/to/swhid"
         
         mock_result = Mock()
@@ -241,9 +252,11 @@ class TestRustV2Support:
     
     @patch('implementations.rust.implementation.subprocess.run')
     @patch.object(Implementation, '_ensure_binary_built')
-    def test_compute_swhid_revision_v2(self, mock_ensure_binary, mock_subprocess):
+    @patch.object(Implementation, '_get_project_root')
+    def test_compute_swhid_revision_v2(self, mock_get_project_root, mock_ensure_binary, mock_subprocess):
         """Test that revision computation works with v2/SHA256."""
         # Setup mocks
+        mock_get_project_root.return_value = "/fake/project/root"
         mock_ensure_binary.return_value = "/path/to/swhid"
         
         mock_result = Mock()
