@@ -513,6 +513,14 @@ jobs:
             fi
           fi
           
+          # Method 2b: Check GEM_HOME environment variable (set by ruby/setup-ruby)
+          if [ -z "$GEM_BIN_DIR" ] || [ ! -d "$GEM_BIN_DIR" ]; then
+            if [ -n "$GEM_HOME" ] && [ -d "$GEM_HOME/bin" ]; then
+              GEM_BIN_DIR="$GEM_HOME/bin"
+              echo "Using GEM_HOME/bin: $GEM_BIN_DIR"
+            fi
+          fi
+          
           # Method 3: Search for swhid executable and use its directory
           if [ -z "$GEM_BIN_DIR" ] || [ ! -d "$GEM_BIN_DIR" ] || [ ! -f "$GEM_BIN_DIR/swhid" ]; then
             # Platform-specific search paths
