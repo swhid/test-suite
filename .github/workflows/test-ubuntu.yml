@@ -482,32 +482,90 @@ jobs:
         if: always() && steps.swhid-rs-setup.outcome == 'success' && steps.swhid-rs-setup.outputs.swhid_rs_rebuilt == 'true'
         shell: bash
         run: |
-          echo "Ensuring commit marker exists in target directory..."
+          echo "=== STEP 1: Ensuring commit marker exists in target directory ==="
           cd /tmp/swhid-rs
           
           # Get commit hash
           SWHID_RS_COMMIT=$(git rev-parse HEAD 2>/dev/null || echo "unknown")
-          echo "Current swhid-rs commit: ${SWHID_RS_COMMIT:0:7}"
+          echo "Current swhid-rs commit: ${SWHID_RS_COMMIT:0:7} (full: $SWHID_RS_COMMIT)"
           
           # Ensure target directory exists
           mkdir -p target
           
-          # Create/update commit marker
+          # Create/update commit marker (as hidden file)
           echo "$SWHID_RS_COMMIT" > target/.swhid-rs-commit
           
-          # Verify it was created
+          # Also create a non-hidden version for artifact inclusion
+          echo "$SWHID_RS_COMMIT" > target/swhid-rs-commit.txt
+          
+          # Verify both were created
+          echo ""
+          echo "=== Verifying commit markers ==="
           if [ -f target/.swhid-rs-commit ]; then
-            echo "✅ Commit marker created/verified: $(cat target/.swhid-rs-commit)"
+            echo "✅ Hidden marker created: $(cat target/.swhid-rs-commit)"
             ls -la target/.swhid-rs-commit
-            echo "File size: $(stat -c%s target/.swhid-rs-commit 2>/dev/null || stat -f%z target/.swhid-rs-commit 2>/dev/null || echo 'unknown') bytes"
           else
-            echo "❌ ERROR: Failed to create commit marker!"
+            echo "❌ ERROR: Failed to create hidden commit marker!"
+            exit 1
+          fi
+          
+          if [ -f target/swhid-rs-commit.txt ]; then
+            echo "✅ Non-hidden marker created: $(cat target/swhid-rs-commit.txt)"
+            ls -la target/swhid-rs-commit.txt
+          else
+            echo "❌ ERROR: Failed to create non-hidden commit marker!"
             exit 1
           fi
           
           # List target directory to verify structure
-          echo "Target directory contents (first 10 entries):"
-          ls -la target/ | head -12 || true
+          echo ""
+          echo "=== Target directory structure (all files, including hidden) ==="
+          ls -la target/ | head -20 || true
+          
+          # Check if release directory exists
+          if [ -d target/release ]; then
+            echo ""
+            echo "=== Release directory structure ==="
+            ls -la target/release/ | head -10 || true
+            # Also copy marker to release directory
+            cp target/.swhid-rs-commit target/release/.swhid-rs-commit 2>/dev/null || true
+            cp target/swhid-rs-commit.txt target/release/swhid-rs-commit.txt 2>/dev/null || true
+            echo "Copied markers to release directory"
+          fi
+          
+          # Find all commit markers
+          echo ""
+          echo "=== Searching for all commit markers ==="
+          find target -name ".swhid-rs-commit" -o -name "swhid-rs-commit.txt" 2>/dev/null | sort || true
+        continue-on-error: true
+      
+      - name: Verify files before artifact upload
+        if: always() && steps.swhid-rs-setup.outcome == 'success' && steps.swhid-rs-setup.outputs.swhid_rs_rebuilt == 'true'
+        shell: bash
+        run: |
+          echo "=== STEP 2: Verifying files before artifact upload ==="
+          cd /tmp/swhid-rs
+          
+          echo "Checking commit markers:"
+          if [ -f target/.swhid-rs-commit ]; then
+            echo "✅ Hidden marker exists: $(cat target/.swhid-rs-commit)"
+          else
+            echo "❌ Hidden marker missing!"
+          fi
+          
+          if [ -f target/swhid-rs-commit.txt ]; then
+            echo "✅ Non-hidden marker exists: $(cat target/swhid-rs-commit.txt)"
+          else
+            echo "❌ Non-hidden marker missing!"
+          fi
+          
+          echo ""
+          echo "Target directory size:"
+          du -sh target/ || true
+          
+          echo ""
+          echo "Files to be uploaded (first 20):"
+          find target -type f | head -20 || true
         continue-on-error: true
       
       - name: Upload swhid-rs build artifacts (if rebuilt)
@@ -519,6 +577,8 @@ jobs:
           path: /tmp/swhid-rs/target
           retention-days: 1
           if-no-files-found: ignore
+          # Note: upload-artifact@v4 may exclude hidden files by default
+          # We've created both .swhid-rs-commit (hidden) and swhid-rs-commit.txt (non-hidden)
       
       - name: Run harness unit tests
         run: |
