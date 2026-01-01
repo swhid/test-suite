@@ -804,15 +804,87 @@ jobs:
           find target -name ".swhid-rs-commit" -o -name "swhid-rs-commit.txt" 2>/dev/null | sort || true
         continue-on-error: true
       
-      - name: Upload swhid-rs build artifacts (if rebuilt)
+      - name: Verify files before artifact upload
         if: always() && steps.swhid-rs-setup.outcome == 'success' && steps.swhid-rs-setup.outputs.swhid_rs_rebuilt == 'true'
+        id: verify-upload
+        shell: bash
+        run: |
+          echo "=== STEP 2: Verifying files before artifact upload ==="
+          
+          # Use SWHID_RS_PATH if available, otherwise default to /tmp/swhid-rs
+          SWHID_RS_DIR="${SWHID_RS_PATH:-/tmp/swhid-rs}"
+          echo "Using swhid-rs directory: $SWHID_RS_DIR"
+          
+          cd "$SWHID_RS_DIR"
+          
+          # Get absolute path for artifact upload (works cross-platform)
+          if [ "$RUNNER_OS" == "Windows" ]; then
+            # On Windows, convert Unix path to Windows path
+            TARGET_DIR=$(cygpath -w "$(pwd)/target" 2>/dev/null || echo "$(pwd)/target")
+            # Also try without cygpath if it's not available
+            if [ ! -d "$TARGET_DIR" ]; then
+              TARGET_DIR="$(pwd)/target"
+            fi
+          else
+            TARGET_DIR="$(pwd)/target"
+          fi
+          
+          echo "Target directory (absolute): $TARGET_DIR"
+          echo "target_dir=$TARGET_DIR" >> $GITHUB_OUTPUT
+          echo "swhid_rs_dir=$SWHID_RS_DIR" >> $GITHUB_OUTPUT
+          
+          echo "Checking commit markers:"
+          if [ -f target/.swhid-rs-commit ]; then
+            echo "✅ Hidden marker exists: $(cat target/.swhid-rs-commit)"
+          else
+            echo "❌ Hidden marker missing!"
+          fi
+          
+          if [ -f target/swhid-rs-commit.txt ]; then
+            echo "✅ Non-hidden marker exists: $(cat target/swhid-rs-commit.txt)"
+          else
+            echo "❌ Non-hidden marker missing!"
+          fi
+          
+          echo ""
+          echo "Target directory size:"
+          du -sh target/ || true
+          
+          echo ""
+          echo "Files to be uploaded (first 20):"
+          find target -type f | head -20 || true
+          
+          # Verify the path exists and is accessible
+          if [ ! -d "target" ]; then
+            echo "❌ ERROR: target directory does not exist at $TARGET_DIR"
+            exit 1
+          fi
+          
+          if [ "$RUNNER_OS" == "Windows" ]; then
+            # On Windows, also check if swhid.exe exists
+            if [ ! -f "target/release/swhid" ] && [ ! -f "target/release/swhid.exe" ]; then
+              echo "⚠️ WARNING: swhid binary not found in target/release/"
+              ls -la target/release/ || true
+            fi
+          else
+            if [ ! -f "target/release/swhid" ]; then
+              echo "⚠️ WARNING: swhid binary not found in target/release/"
+              ls -la target/release/ || true
+            fi
+          fi
+        continue-on-error: true
+      
+      - name: Upload swhid-rs build artifacts (if rebuilt)
+        if: always() && steps.swhid-rs-setup.outcome == 'success' && steps.swhid-rs-setup.outputs.swhid_rs_rebuilt == 'true' && steps.verify-upload.outcome == 'success'
         uses: actions/upload-artifact@v4
         continue-on-error: true
         with:
           name: swhid-rs-target-${{ matrix.os == 'ubuntu-24.04' && 'Linux' || matrix.os == 'macos-14' && 'macOS' || 'Windows' }}
-          path: /tmp/swhid-rs/target
+          path: ${{ steps.verify-upload.outputs.target_dir || '/tmp/swhid-rs/target' }}
           retention-days: 1
           if-no-files-found: ignore
+          # Note: upload-artifact@v4 may exclude hidden files by default
+          # We've created both .swhid-rs-commit (hidden) and swhid-rs-commit.txt (non-hidden)
       
       - name: Run harness unit tests
         run: |
