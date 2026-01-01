@@ -180,7 +180,9 @@ jobs:
           # Method 3: Search for swhid executable and use its directory
           if [ -z "$GEM_BIN_DIR" ] || [ ! -d "$GEM_BIN_DIR" ] || [ ! -f "$GEM_BIN_DIR/swhid" ]; then
             # Search in common gem installation locations
-            SWHID_PATH=$(find ~/.local/share/gem ~/.gem /opt/hostedtoolcache/Ruby -name swhid -type f 2>/dev/null | head -1 || echo "")
+            # Use runner.toolCache which works on all platforms
+            TOOL_CACHE="${RUNNER_TOOL_CACHE:-/opt/hostedtoolcache}"
+            SWHID_PATH=$(find ~/.local/share/gem ~/.gem "$TOOL_CACHE/Ruby" -name swhid -type f 2>/dev/null | head -1 || echo "")
             if [ -n "$SWHID_PATH" ] && [ "$SWHID_PATH" != "" ]; then
               GEM_BIN_DIR=$(dirname "$SWHID_PATH")
               echo "Found swhid at: $SWHID_PATH"
@@ -189,7 +191,8 @@ jobs:
           
           # Method 4: Try common locations
           if [ -z "$GEM_BIN_DIR" ] || [ ! -d "$GEM_BIN_DIR" ]; then
-            for dir in ~/.local/share/gem/ruby/*/bin ~/.gem/ruby/*/bin /opt/hostedtoolcache/Ruby/*/x64/lib/ruby/gems/*/bin; do
+            TOOL_CACHE="${RUNNER_TOOL_CACHE:-/opt/hostedtoolcache}"
+            for dir in ~/.local/share/gem/ruby/*/bin ~/.gem/ruby/*/bin "$TOOL_CACHE/Ruby"/*/x64/lib/ruby/gems/*/bin "$TOOL_CACHE/Ruby"/*/x64/bin; do
               if [ -d "$dir" ] && [ -f "$dir/swhid" ] 2>/dev/null; then
                 GEM_BIN_DIR="$dir"
                 echo "Found swhid in: $dir"
