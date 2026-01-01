@@ -152,7 +152,7 @@ jobs:
         continue-on-error: true
         with:
           path: /tmp/swhid-rs/target
-          key: swhid-rs-${{ runner.os }}-${{ hash(secrets.SWHID_RS_REPO || 'https://github.com/swhid/swhid-rs.git') }}
+          key: swhid-rs-${{ runner.os }}-stable
           restore-keys: |
             swhid-rs-${{ runner.os }}-
       
