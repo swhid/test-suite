@@ -202,6 +202,23 @@ jobs:
           restore-keys: |
             swhid-rs-${{ runner.os }}-
       
+      - name: Check cache restore status
+        shell: bash
+        run: |
+          if [ -d /tmp/swhid-rs/target/release ] && [ -f /tmp/swhid-rs/target/release/swhid ]; then
+            CACHED_COMMIT_FILE="/tmp/swhid-rs/target/.swhid-rs-commit"
+            if [ -f "$CACHED_COMMIT_FILE" ]; then
+              CACHED_COMMIT=$(cat "$CACHED_COMMIT_FILE" 2>/dev/null || echo "unknown")
+              echo "✅ Cache hit: Found cached binary for commit ${CACHED_COMMIT:0:7}"
+              echo "Cached commit: $CACHED_COMMIT"
+            else
+              echo "⚠️ Cache hit: Found cached binary but no commit marker (will need validation)"
+            fi
+          else
+            echo "❌ Cache miss: No cached binary found"
+          fi
+        continue-on-error: true
+      
       - name: Setup SSH for private repository access (optional)
         shell: bash
         run: |
@@ -316,18 +333,21 @@ jobs:
                 if [ -f "$CACHED_COMMIT_FILE" ]; then
                   CACHED_COMMIT=$(cat "$CACHED_COMMIT_FILE" 2>/dev/null || echo "")
                   if [ "$CACHED_COMMIT" = "$SWHID_RS_COMMIT" ]; then
-                    echo "Using cached swhid-rs binary (commit ${SWHID_RS_COMMIT:0:7})"
+                    echo "✅ Using cached swhid-rs binary (commit ${SWHID_RS_COMMIT:0:7})"
+                    echo "Cache validation: Commit hash matches, no rebuild needed"
                     BUILD_EXIT_CODE=0
                     NEED_REBUILD=false
                   else
-                    echo "Cached binary is from different commit (cached: ${CACHED_COMMIT:0:7}, current: ${SWHID_RS_COMMIT:0:7})"
-                    echo "Rebuilding swhid-rs..."
+                    echo "🔄 Changes detected: Cached commit ${CACHED_COMMIT:0:7} != current commit ${SWHID_RS_COMMIT:0:7}"
+                    echo "Cached commit: ${CACHED_COMMIT:0:7}"
+                    echo "Current commit: ${SWHID_RS_COMMIT:0:7}"
+                    echo "Rebuilding swhid-rs to match current commit..."
                   fi
                 else
-                  echo "Cached binary exists but no commit marker found, rebuilding to be safe..."
+                  echo "⚠️ Cached binary exists but no commit marker found, rebuilding to be safe..."
                 fi
               else
-                echo "No cached binary found, building swhid-rs..."
+                echo "❌ No cached binary found, building swhid-rs..."
               fi
               
               if [ "$NEED_REBUILD" = "true" ]; then
@@ -381,6 +401,19 @@ jobs:
             echo "ℹ️ SWHID_RS_REPO not configured - Rust implementation will be skipped" >> $GITHUB_STEP_SUMMARY
           fi
           set -e
+        continue-on-error: true
+      
+      - name: Log cache replacement
+        if: always() && steps.swhid-rs-setup.outcome == 'success' && steps.swhid-rs-setup.outputs.swhid_rs_rebuilt == 'true'
+        shell: bash
+        run: |
+          if [ -f /tmp/swhid-rs/target/.swhid-rs-commit ]; then
+            SAVED_COMMIT=$(cat /tmp/swhid-rs/target/.swhid-rs-commit 2>/dev/null || echo "unknown")
+            echo "💾 Replacing cache: Saving new binary for commit ${SAVED_COMMIT:0:7}"
+            echo "This will replace the old cache entry with key: swhid-rs-${{ runner.os }}-stable"
+          else
+            echo "⚠️ Warning: Commit marker not found, but proceeding with cache save"
+          fi
         continue-on-error: true
       
       - name: Save swhid-rs build cache (with commit marker)
