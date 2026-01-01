@@ -35,6 +35,8 @@ class Implementation(SwhidImplementation):
                 ["python3", "-c", "import swh.model"],
                 capture_output=True,
                 text=True,
+                encoding='utf-8',
+                errors='replace',
                 timeout=5
             )
             if result.returncode != 0:
@@ -45,6 +47,8 @@ class Implementation(SwhidImplementation):
                 ["python3", "-m", "swh.model.cli", "--help"],
                 capture_output=True,
                 text=True,
+                encoding='utf-8',
+                errors='replace',
                 timeout=10
             )
             return result.returncode == 0
@@ -94,6 +98,8 @@ class Implementation(SwhidImplementation):
                 cmd,
                 capture_output=True,
                 text=True,
+                encoding='utf-8',
+                errors='replace',
                 timeout=30
             )
             

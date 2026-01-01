@@ -50,6 +50,8 @@ class Implementation(SwhidImplementation):
                 ["ruby", "-e", "puts Gem.user_dir"],
                 capture_output=True,
                 text=True,
+                encoding='utf-8',
+                errors='replace',
                 timeout=2
             )
             if gem_env_result.returncode == 0:
@@ -92,6 +94,8 @@ class Implementation(SwhidImplementation):
                 [swhid_path, "help"],
                 capture_output=True,
                 text=True,
+                encoding='utf-8',
+                errors='replace',
                 timeout=5
             )
             return result.returncode == 0
@@ -199,6 +203,8 @@ class Implementation(SwhidImplementation):
                     cmd,
                     capture_output=True,
                     text=True,
+                    encoding='utf-8',
+                    errors='replace',
                     timeout=30
                 )
 
@@ -293,6 +299,8 @@ class Implementation(SwhidImplementation):
                                     cwd=repo_root,
                                     capture_output=True,
                                     text=True,
+                                    encoding='utf-8',
+                                    errors='replace',
                                     timeout=2
                                 )
                                 if result.returncode == 0 and result.stdout.strip():
@@ -314,6 +322,8 @@ class Implementation(SwhidImplementation):
                             cwd=repo_root,
                             capture_output=True,
                             text=True,
+                            encoding='utf-8',
+                            errors='replace',
                             timeout=2
                         )
                         if result.returncode == 0 and result.stdout.strip():

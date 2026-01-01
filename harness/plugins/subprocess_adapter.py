@@ -406,6 +406,8 @@ class JSONProtocolAdapter(SwhidImplementation):
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
+                encoding='utf-8',
+                errors='replace',
                 env=env,
                 cwd=work_dir,
                 preexec_fn=self._set_resource_limits if os.name != 'nt' else None

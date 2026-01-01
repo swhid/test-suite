@@ -46,6 +46,8 @@ class Implementation(SwhidImplementation):
                 ["cargo", "--version"],
                 capture_output=True,
                 text=True,
+                encoding='utf-8',
+                errors='replace',
                 timeout=5
             )
             if result.returncode != 0:
@@ -98,6 +100,8 @@ class Implementation(SwhidImplementation):
             cwd=project_root,
             capture_output=True,
             text=True,
+            encoding='utf-8',
+            errors='replace',
             timeout=300  # 5 minutes for build
         )
         
@@ -212,6 +216,8 @@ class Implementation(SwhidImplementation):
                         cwd=payload_path,
                         capture_output=True,
                         text=True,
+                        encoding='utf-8',
+                        errors='replace',
                         check=True,
                         timeout=5
                     )
@@ -238,6 +244,8 @@ class Implementation(SwhidImplementation):
                 cmd,
                 capture_output=True,
                 text=True,
+                encoding='utf-8',
+                errors='replace',
                 cwd=project_root,
                 timeout=60  # Increased timeout since we're running binary directly (no compilation)
             )
@@ -258,6 +266,8 @@ class Implementation(SwhidImplementation):
                             alt_cmd,
                             capture_output=True,
                             text=True,
+                            encoding='utf-8',
+                            errors='replace',
                             cwd=project_root,
                             timeout=60
                         )
@@ -276,6 +286,8 @@ class Implementation(SwhidImplementation):
                             alt_cmd,
                             capture_output=True,
                             text=True,
+                            encoding='utf-8',
+                            errors='replace',
                             cwd=project_root,
                             timeout=60
                         )
@@ -626,6 +638,8 @@ class Implementation(SwhidImplementation):
                 [binary_path, "content", "--help"],
                 capture_output=True,
                 text=True,
+                encoding='utf-8',
+                errors='replace',
                 timeout=5
             )
             # If --help works, check if --file is mentioned in help
@@ -667,6 +681,8 @@ class Implementation(SwhidImplementation):
                     test_cmd,
                     capture_output=True,
                     text=True,
+                    encoding='utf-8',
+                    errors='replace',
                     timeout=10
                 )
                 if result.returncode == 0:
@@ -685,6 +701,8 @@ class Implementation(SwhidImplementation):
                 test_cmd,
                 capture_output=True,
                 text=True,
+                encoding='utf-8',
+                errors='replace',
                 timeout=10
             )
             if result.returncode == 0:
@@ -706,6 +724,8 @@ class Implementation(SwhidImplementation):
                     test_cmd,
                     capture_output=True,
                     text=True,
+                    encoding='utf-8',
+                    errors='replace',
                     timeout=10
                 )
                 if result.returncode == 0:
