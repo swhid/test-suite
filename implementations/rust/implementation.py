@@ -398,10 +398,15 @@ class Implementation(SwhidImplementation):
         
         if os.path.isdir(source_path):
             # Copy directory contents to target subdirectory
+            # Preserve symlinks (important for mixed_types test)
             for item in os.listdir(source_path):
                 src_item = os.path.join(source_path, item)
                 dst_item = os.path.join(target_subdir, item)
-                if os.path.isdir(src_item):
+                if os.path.islink(src_item):
+                    # Preserve symlinks by copying the symlink itself, not the target
+                    link_target = os.readlink(src_item)
+                    os.symlink(link_target, dst_item)
+                elif os.path.isdir(src_item):
                     shutil.copytree(src_item, dst_item, symlinks=True)
                 else:
                     shutil.copy2(src_item, dst_item)
