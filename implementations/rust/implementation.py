@@ -147,12 +147,7 @@ class Implementation(SwhidImplementation):
         if not project_root:
             raise RuntimeError("Could not find Rust project root. Set SWHID_RS_PATH environment variable or ensure swhid-rs project is accessible.")
         
-        # Determine if we need git feature
-        # Directory operations may need git feature for --permissions-source git-index
-        # (though auto-detection will work without it if no Git repo is found)
-        needs_git = obj_type in ("snapshot", "revision", "release") or obj_type == "directory"
-        
-        # Ensure binary is built (check and build if needed)
+        # Ensure binary is built with git feature (works for all object types)
         binary_path = self._ensure_binary_built(project_root)
         
         # Build the command based on object type
