@@ -877,8 +877,9 @@ class SwhidHarness:
         subprocess.run(["git", "config", "tag.gpgSign", "false"], cwd=repo_path, check=True)
         
         # Configure Git for cross-platform consistency (critical for Windows)
-        # This ensures line endings and Unicode are handled consistently
+        # This ensures line endings, Unicode, and file modes are handled consistently
         subprocess.run(["git", "config", "core.autocrlf", "false"], cwd=repo_path, check=True, capture_output=True)
+        subprocess.run(["git", "config", "core.filemode", "true"], cwd=repo_path, check=True, capture_output=True)
         subprocess.run(["git", "config", "core.precomposeunicode", "false"], cwd=repo_path, check=True, capture_output=True)
 
         # Create a file and commit (first timestamp)
