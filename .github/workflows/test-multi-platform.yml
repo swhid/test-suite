@@ -515,22 +515,54 @@ jobs:
           
           # Method 3: Search for swhid executable and use its directory
           if [ -z "$GEM_BIN_DIR" ] || [ ! -d "$GEM_BIN_DIR" ] || [ ! -f "$GEM_BIN_DIR/swhid" ]; then
-            SWHID_PATH=$(find ~/.local/share/gem ~/.gem /opt/hostedtoolcache/Ruby -name swhid -type f 2>/dev/null | head -1 || echo "")
+            # Platform-specific search paths
+            if [ "$RUNNER_OS" == "macOS" ]; then
+              # macOS: Check Homebrew paths and tool cache
+              SWHID_PATH=$(find ~/.local/share/gem ~/.gem /opt/hostedtoolcache/Ruby "$HOME/Library/Ruby" /opt/homebrew/lib/ruby -name swhid -type f 2>/dev/null | head -1 || echo "")
+            elif [ "$RUNNER_OS" == "Windows" ]; then
+              # Windows: Check tool cache and user directories
+              SWHID_PATH=$(find ~/.local/share/gem ~/.gem /opt/hostedtoolcache/Ruby "$HOME/AppData/Local/Programs/Ruby" -name swhid -type f 2>/dev/null | head -1 || echo "")
+            else
+              # Linux: Standard paths
+              SWHID_PATH=$(find ~/.local/share/gem ~/.gem /opt/hostedtoolcache/Ruby -name swhid -type f 2>/dev/null | head -1 || echo "")
+            fi
+            
             if [ -n "$SWHID_PATH" ] && [ "$SWHID_PATH" != "" ]; then
               GEM_BIN_DIR=$(dirname "$SWHID_PATH")
               echo "Found swhid at: $SWHID_PATH"
             fi
           fi
           
-          # Method 4: Try common locations
+          # Method 4: Try common locations (platform-specific)
           if [ -z "$GEM_BIN_DIR" ] || [ ! -d "$GEM_BIN_DIR" ]; then
-            for dir in ~/.local/share/gem/ruby/*/bin ~/.gem/ruby/*/bin /opt/hostedtoolcache/Ruby/*/x64/lib/ruby/gems/*/bin; do
-              if [ -d "$dir" ] && [ -f "$dir/swhid" ] 2>/dev/null; then
-                GEM_BIN_DIR="$dir"
-                echo "Found swhid in: $dir"
-                break
-              fi
-            done
+            if [ "$RUNNER_OS" == "macOS" ]; then
+              # macOS: Check Homebrew and tool cache locations
+              for dir in ~/.local/share/gem/ruby/*/bin ~/.gem/ruby/*/bin /opt/hostedtoolcache/Ruby/*/x64/lib/ruby/gems/*/bin "$HOME/Library/Ruby"/*/bin /opt/homebrew/lib/ruby/gems/*/bin; do
+                if [ -d "$dir" ] && [ -f "$dir/swhid" ] 2>/dev/null; then
+                  GEM_BIN_DIR="$dir"
+                  echo "Found swhid in: $dir"
+                  break
+                fi
+              done
+            elif [ "$RUNNER_OS" == "Windows" ]; then
+              # Windows: Check tool cache and user directories
+              for dir in ~/.local/share/gem/ruby/*/bin ~/.gem/ruby/*/bin /opt/hostedtoolcache/Ruby/*/x64/lib/ruby/gems/*/bin "$HOME/AppData/Local/Programs/Ruby"/*/bin; do
+                if [ -d "$dir" ] && [ -f "$dir/swhid" ] 2>/dev/null; then
+                  GEM_BIN_DIR="$dir"
+                  echo "Found swhid in: $dir"
+                  break
+                fi
+              done
+            else
+              # Linux: Standard paths
+              for dir in ~/.local/share/gem/ruby/*/bin ~/.gem/ruby/*/bin /opt/hostedtoolcache/Ruby/*/x64/lib/ruby/gems/*/bin; do
+                if [ -d "$dir" ] && [ -f "$dir/swhid" ] 2>/dev/null; then
+                  GEM_BIN_DIR="$dir"
+                  echo "Found swhid in: $dir"
+                  break
+                fi
+              done
+            fi
           fi
           
           set -e  # Re-enable exit on error
