@@ -20,8 +20,6 @@ class Implementation(SwhidImplementation):
     """Rust SWHID implementation plugin."""
     
     def __init__(self) -> None:
-        self._git_build_ready = False
-        self._default_build_ready = False
         self._binary_path_cache: Optional[str] = None
         self._temp_dirs: list = []  # Track temp directories for cleanup
         self._content_command_format: Optional[str] = None  # Cache detected format: "positional" or "file_flag"
@@ -82,18 +80,14 @@ class Implementation(SwhidImplementation):
             supports_percent_encoding=True
         )
     
-    def _build_binary(self, project_root: str, use_git_feature: bool) -> str:
-        """Build the Rust binary, optionally enabling the git feature."""
+    def _build_binary(self, project_root: str) -> str:
+        """Build the Rust binary with git feature enabled."""
         import platform
         # On Windows, the binary is swhid.exe, on Unix it's swhid
         binary_name = "swhid.exe" if platform.system() == "Windows" else "swhid"
         binary_path = Path(project_root) / "target" / "release" / binary_name
-        build_cmd = ["cargo", "build", "--release"]
-        if use_git_feature:
-            build_cmd.extend(["--features", "git"])
-            logger.info("Building Rust binary with git feature enabled...")
-        else:
-            logger.info("Building Rust binary without git feature...")
+        build_cmd = ["cargo", "build", "--release", "--features", "git"]
+        logger.info("Building Rust binary with git feature enabled...")
         
         result = subprocess.run(
             build_cmd,
@@ -116,27 +110,15 @@ class Implementation(SwhidImplementation):
         self._binary_path_cache = str(binary_path)
         return self._binary_path_cache
 
-    def _ensure_binary_built(self, project_root: str, needs_git: bool = False) -> str:
-        """Ensure the Rust binary is built (with git feature if needed) and return its path."""
+    def _ensure_binary_built(self, project_root: str) -> str:
+        """Ensure the Rust binary is built with git feature enabled and return its path."""
         import platform
         binary_name = "swhid.exe" if platform.system() == "Windows" else "swhid"
         binary_path = self._binary_path_cache or str(Path(project_root) / "target" / "release" / binary_name)
         
-        # If git feature is required but we haven't built with it yet, build now
-        if needs_git and not self._git_build_ready:
-            binary_path = self._build_binary(project_root, use_git_feature=True)
-            self._git_build_ready = True
-            # Building with git feature also produces a usable binary for non-git operations
-            self._default_build_ready = True
-            return binary_path
-        
-        # If binary missing entirely or never built, build without git feature
-        if not Path(binary_path).exists() or not self._default_build_ready:
-            binary_path = self._build_binary(project_root, use_git_feature=needs_git)
-            self._default_build_ready = True
-            if needs_git:
-                self._git_build_ready = True
-            return binary_path
+        # If binary doesn't exist, build with git feature
+        if not Path(binary_path).exists():
+            binary_path = self._build_binary(project_root)
         
         return binary_path
     

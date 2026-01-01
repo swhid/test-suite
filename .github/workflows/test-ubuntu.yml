@@ -177,6 +177,7 @@ jobs:
           
           # Method 3: Search for swhid executable and use its directory
           if [ -z "$GEM_BIN_DIR" ] || [ ! -d "$GEM_BIN_DIR" ] || [ ! -f "$GEM_BIN_DIR/swhid" ]; then
+            # Search in common gem installation locations
             SWHID_PATH=$(find ~/.local/share/gem ~/.gem /opt/hostedtoolcache/Ruby -name swhid -type f 2>/dev/null | head -1 || echo "")
             if [ -n "$SWHID_PATH" ] && [ "$SWHID_PATH" != "" ]; then
               GEM_BIN_DIR=$(dirname "$SWHID_PATH")
@@ -417,7 +418,7 @@ jobs:
               fi
               
               if [ "$NEED_REBUILD" = "true" ]; then
-                cargo build --release 2>&1 | tee /tmp/swhid-rs-build.log
+                cargo build --release --features git 2>&1 | tee /tmp/swhid-rs-build.log
                 BUILD_EXIT_CODE=${PIPESTATUS[0]}
                 if [ $BUILD_EXIT_CODE -eq 0 ]; then
                   REBUILT=true
