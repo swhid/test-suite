@@ -867,6 +867,11 @@ class SwhidHarness:
         # Disable GPG signing for commits and tags to ensure deterministic objects
         subprocess.run(["git", "config", "commit.gpgSign", "false"], cwd=repo_path, check=True)
         subprocess.run(["git", "config", "tag.gpgSign", "false"], cwd=repo_path, check=True)
+        
+        # Configure Git for cross-platform consistency (critical for Windows)
+        # This ensures line endings and Unicode are handled consistently
+        subprocess.run(["git", "config", "core.autocrlf", "false"], cwd=repo_path, check=True, capture_output=True)
+        subprocess.run(["git", "config", "core.precomposeunicode", "false"], cwd=repo_path, check=True, capture_output=True)
 
         # Create a file and commit (first timestamp)
         env["GIT_AUTHOR_DATE"] = f"{test_tick} +0000"
