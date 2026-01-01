@@ -392,7 +392,9 @@ jobs:
         continue-on-error: true
         with:
           path: /tmp/swhid-rs/target
-          key: swhid-rs-${{ runner.os }}-stable
+          # Use commit-specific key to allow saving even if generic key was a hit
+          # This ensures the commit marker is saved
+          key: ${{ steps.swhid-rs-setup.outputs.swhid_rs_cache_key }}
           restore-keys: |
             swhid-rs-${{ runner.os }}-
       
