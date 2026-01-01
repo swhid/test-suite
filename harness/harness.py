@@ -875,9 +875,12 @@ class SwhidHarness:
         subprocess.run(["git", "config", "core.precomposeunicode", "false"], cwd=repo_path, check=True, capture_output=True)
 
         # Create a file and commit (first timestamp)
+        # Write files in binary mode with explicit LF line endings and UTF-8 encoding
+        # to ensure cross-platform consistency (pathlib.write_text() may use CRLF on Windows)
         env["GIT_AUTHOR_DATE"] = f"{test_tick} +0000"
         env["GIT_COMMITTER_DATE"] = f"{test_tick} +0000"
-        (path / "README.md").write_text("# Sample Repo\n")
+        with open(path / "README.md", "wb") as f:
+            f.write("# Sample Repo\n".encode("utf-8"))
         subprocess.run(["git", "add", "README.md"], cwd=repo_path, check=True, capture_output=True)
         subprocess.run(["git", "commit", "-m", "Initial commit"], cwd=repo_path, check=True,
                       capture_output=True, env=env)
@@ -887,7 +890,8 @@ class SwhidHarness:
         env["GIT_AUTHOR_DATE"] = f"{test_tick} +0000"
         env["GIT_COMMITTER_DATE"] = f"{test_tick} +0000"
         subprocess.run(["git", "checkout", "-b", "feature"], cwd=repo_path, check=True, capture_output=True)
-        (path / "FEATURE.txt").write_text("feature\n")
+        with open(path / "FEATURE.txt", "wb") as f:
+            f.write("feature\n".encode("utf-8"))
         subprocess.run(["git", "add", "FEATURE.txt"], cwd=repo_path, check=True, capture_output=True)
         subprocess.run(["git", "commit", "-m", "Add feature"], cwd=repo_path, check=True,
                       capture_output=True, env=env)
