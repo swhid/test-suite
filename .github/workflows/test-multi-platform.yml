@@ -475,6 +475,7 @@ jobs:
         with:
           # Use /tmp/swhid-rs/target - works on all platforms with bash shell
           # Cache key includes runner.os, so each platform has its own cache
+          # Note: Cache key will be updated after clone to include source code hash
           path: /tmp/swhid-rs/target
           key: swhid-rs-${{ runner.os }}-stable
           restore-keys: |
@@ -573,6 +574,10 @@ jobs:
             if [ $CLONE_EXIT_CODE -eq 0 ] && [ -d /tmp/swhid-rs ]; then
               cd /tmp/swhid-rs
               
+              # Get the current commit hash of swhid-rs to check if we need to rebuild
+              SWHID_RS_COMMIT=$(git rev-parse HEAD 2>/dev/null || echo "unknown")
+              echo "swhid-rs commit: ${SWHID_RS_COMMIT:0:7}"
+              
               # Restore cached target/ directory if it was preserved
               if [ -d /tmp/swhid-rs-cache-backup/target ]; then
                 echo "Restoring cached build artifacts..."
@@ -580,14 +585,37 @@ jobs:
                 rm -rf /tmp/swhid-rs-cache-backup || true
               fi
               
-              # Check if we have cached build artifacts
+              # Check if we have cached build artifacts and if they match current source
+              # We check for the binary AND verify it was built from the same commit
+              CACHED_COMMIT_FILE="target/.swhid-rs-commit"
+              NEED_REBUILD=true
+              
               if [ -d target/release ] && [ -f target/release/swhid ]; then
-                echo "Using cached swhid-rs binary"
-                BUILD_EXIT_CODE=0
+                if [ -f "$CACHED_COMMIT_FILE" ]; then
+                  CACHED_COMMIT=$(cat "$CACHED_COMMIT_FILE" 2>/dev/null || echo "")
+                  if [ "$CACHED_COMMIT" = "$SWHID_RS_COMMIT" ]; then
+                    echo "Using cached swhid-rs binary (commit ${SWHID_RS_COMMIT:0:7})"
+                    BUILD_EXIT_CODE=0
+                    NEED_REBUILD=false
+                  else
+                    echo "Cached binary is from different commit (cached: ${CACHED_COMMIT:0:7}, current: ${SWHID_RS_COMMIT:0:7})"
+                    echo "Rebuilding swhid-rs..."
+                  fi
+                else
+                  echo "Cached binary exists but no commit marker found, rebuilding to be safe..."
+                fi
               else
-                echo "Building swhid-rs (cache miss or outdated)..."
+                echo "No cached binary found, building swhid-rs..."
+              fi
+              
+              if [ "$NEED_REBUILD" = "true" ]; then
                 cargo build --release 2>&1 | tee /tmp/swhid-rs-build.log
                 BUILD_EXIT_CODE=${PIPESTATUS[0]}
+                if [ $BUILD_EXIT_CODE -eq 0 ]; then
+                  # Save the commit hash for future cache validation
+                  echo "$SWHID_RS_COMMIT" > "$CACHED_COMMIT_FILE"
+                  echo "Build completed successfully, saved commit marker"
+                fi
               fi
               if [ $BUILD_EXIT_CODE -eq 0 ]; then
                 echo "swhid-rs built successfully"
