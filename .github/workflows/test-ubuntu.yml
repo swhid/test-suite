@@ -384,7 +384,7 @@ jobs:
         continue-on-error: true
       
       - name: Save swhid-rs build cache (with commit marker)
-        if: always() && steps.swhid-rs-setup.outcome == 'success'
+        if: always() && steps.swhid-rs-setup.outcome == 'success' && steps.swhid-rs-setup.outputs.swhid_rs_rebuilt == 'true'
         uses: actions/cache@v4
         continue-on-error: true
         with:
