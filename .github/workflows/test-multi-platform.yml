@@ -318,10 +318,68 @@ jobs:
           bundler-cache: false
         continue-on-error: true
       
+      - name: Cache swhid gem
+        id: cache-swhid-gem
+        uses: actions/cache@v4
+        continue-on-error: true
+        with:
+          path: |
+            ~/.gem/ruby
+            ~/.local/share/gem
+          key: swhid-gem-${{ runner.os }}-ruby-3.2-${{ hashFiles('**/Gemfile.lock') }}
+          restore-keys: |
+            swhid-gem-${{ runner.os }}-ruby-3.2-
+      
+      - name: Determine CPU cores
+        id: cpu-cores
+        shell: bash
+        run: |
+          if command -v nproc >/dev/null 2>&1; then
+            CORES=$(nproc)
+          elif command -v sysctl >/dev/null 2>&1; then
+            CORES=$(sysctl -n hw.ncpu)
+          elif command -v getconf >/dev/null 2>&1; then
+            CORES=$(getconf _NPROCESSORS_ONLN)
+          else
+            CORES=4
+          fi
+          echo "cores=${CORES}" >> $GITHUB_OUTPUT
+          echo "Using parallel compilation with ${CORES} cores"
+      
       - name: Install swhid gem
         shell: bash
         run: |
-          gem install swhid || echo "Warning: swhid gem not available, Ruby implementation will be skipped"
+          # Get cores from previous step (with fallback)
+          CORES="${{ steps.cpu-cores.outputs.cores }}"
+          if [ -z "${CORES}" ] || [ "${CORES}" = "" ]; then
+            # Fallback if output not available
+            if command -v nproc >/dev/null 2>&1; then
+              CORES=$(nproc)
+            elif command -v sysctl >/dev/null 2>&1; then
+              CORES=$(sysctl -n hw.ncpu)
+            else
+              CORES=4
+            fi
+          fi
+          
+          # Unset any existing MAKE variable that might have wrong value
+          unset MAKE || true
+          
+          # Set MAKE with evaluated cores value
+          export MAKE="make -j${CORES}"
+          echo "MAKE variable set to: ${MAKE}"
+          echo "Verifying MAKE variable:"
+          echo "${MAKE}" | head -1
+          
+          # Check if gem is already installed
+          if gem list -i swhid >/dev/null 2>&1; then
+            echo "swhid gem already installed, skipping installation"
+            gem list swhid
+          else
+            echo "Installing swhid gem (this may take a while for native extensions)..."
+            # Run gem install with MAKE explicitly set
+            env MAKE="${MAKE}" gem install swhid --no-document || echo "Warning: swhid gem not available, Ruby implementation will be skipped"
+          fi
         continue-on-error: true
       
       - name: Configure Git for SWHID testing
