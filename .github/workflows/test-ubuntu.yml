@@ -109,9 +109,30 @@ jobs:
           echo "Verifying MAKE variable:"
           echo "${MAKE}" | head -1
           
+          # Check cache restore status first
+          echo "=== Gem cache status ==="
+          echo "cache-hit=${{ steps.cache-swhid-gem.outputs.cache-hit }}"
+          
+          # Verify cache was actually restored by checking if gem files exist
+          echo "Checking for cached gem files..."
+          CACHED_GEM_FOUND=false
+          if [ -d ~/.local/share/gem/ruby/3.2.0/gems/swhid-* ] 2>/dev/null || \
+             [ -d ~/.gem/ruby/3.2.0/gems/swhid-* ] 2>/dev/null || \
+             [ -d /opt/hostedtoolcache/Ruby/3.2.9/x64/lib/ruby/gems/3.2.0/gems/swhid-* ] 2>/dev/null; then
+            CACHED_GEM_FOUND=true
+            echo "✅ Found cached gem files in cache directories"
+            find ~/.local/share/gem ~/.gem /opt/hostedtoolcache/Ruby -type d -name "swhid-*" 2>/dev/null | head -3 || true
+          else
+            echo "⚠️ No cached gem files found in cache directories"
+          fi
+          
           # Check if gem is already installed and validate version
           INSTALLED_VERSION=""
           GEM_AVAILABLE=false
+          
+          # Note: cache-hit is only true for exact key matches
+          # When restore-keys match, cache is restored but cache-hit=false
+          # So we check if gem is actually available, not just cache-hit status
           if gem list -i swhid >/dev/null 2>&1; then
             INSTALLED_VERSION=$(gem list swhid | grep -E "^\s*swhid\s" | sed -E 's/^\s*swhid\s+\(([^)]+)\).*/\1/' | head -1 || echo "")
             echo "swhid gem found in cache: version ${INSTALLED_VERSION}"
@@ -123,6 +144,18 @@ jobs:
             else
               echo "Warning: Cached gem is listed but not usable, will reinstall"
               GEM_AVAILABLE=false
+            fi
+          else
+            # Cache might have been restored but gem not found yet
+            # This can happen if cache paths don't match Ruby's gem paths exactly
+            if [ "$CACHED_GEM_FOUND" = "true" ]; then
+              echo "⚠️ Cached gem files found but gem not recognized by 'gem list'"
+              echo "This may indicate Ruby needs to reload gem paths - will reinstall to ensure gem is available"
+            elif [ "${{ steps.cache-swhid-gem.outputs.cache-hit }}" = "true" ]; then
+              echo "⚠️ Cache was restored (cache-hit=true) but gem files not found"
+              echo "Cache may be empty or corrupted - will reinstall"
+            else
+              echo "Gem not found via 'gem list'"
             fi
           fi
           
@@ -279,14 +312,11 @@ jobs:
           echo "cache-hit=${{ steps.cache-swhid-rs.outputs.cache-hit }}"
           echo ""
           
-          if [ "${{ steps.cache-swhid-rs.outputs.cache-hit }}" = "true" ]; then
-            echo "✅ Cache was restored (cache-hit=true)"
-          else
-            echo "❌ Cache was not restored (cache-hit=false or empty)"
-          fi
-          
-          echo ""
+          # Note: cache-hit is only true for exact key matches
+          # When restore-keys match, cache is restored but cache-hit=false
+          # So we check if the binary actually exists to determine if cache was restored
           if [ -d /tmp/swhid-rs/target/release ] && [ -f /tmp/swhid-rs/target/release/swhid ]; then
+            echo "✅ Cache was restored (binary found)"
             CACHED_COMMIT_FILE="/tmp/swhid-rs/target/.swhid-rs-commit"
             if [ -f "$CACHED_COMMIT_FILE" ]; then
               CACHED_COMMIT=$(cat "$CACHED_COMMIT_FILE" 2>/dev/null || echo "unknown")
@@ -295,8 +325,10 @@ jobs:
             else
               echo "⚠️ Found cached binary but no commit marker (will need validation)"
             fi
+          elif [ "${{ steps.cache-swhid-rs.outputs.cache-hit }}" = "true" ]; then
+            echo "✅ Cache was restored (cache-hit=true, but binary not found - may need rebuild)"
           else
-            echo "❌ No cached binary found in /tmp/swhid-rs/target/release"
+            echo "❌ Cache was not restored (cache-hit=false and binary not found)"
           fi
         continue-on-error: true
       
