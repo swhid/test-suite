@@ -261,17 +261,14 @@ jobs:
           # Note: Cache keys may include commit hash from swhid-rs repo (not known at restore time)
           # So we use restore-keys with prefix matching to find any cache with matching prefix
           path: /tmp/swhid-rs/target
-          # Use a dummy key that won't match - restore-keys will be used to find matching caches
-          # restore-keys match as prefixes, so they will match both:
-          # - Old format: swhid-rs-Linux-stable-ubuntu-workflow (exact match)
-          # - New format: swhid-rs-Linux-stable-ubuntu-workflow-<commit-hash> (prefix match)
-          key: swhid-rs-Linux-stable-ubuntu-workflow-${{ github.run_id }}-dummy
+          # Try exact match first (for old format without commit hash), then use restore-keys
+          # restore-keys match as prefixes, so they will match:
+          # - Old format: swhid-rs-Linux-stable-ubuntu-workflow (exact match if key matches)
+          # - New format: swhid-rs-Linux-stable-ubuntu-workflow-<commit-hash> (prefix match via restore-keys)
+          key: swhid-rs-Linux-stable-ubuntu-workflow
           restore-keys: |
-            swhid-rs-Linux-stable-ubuntu-workflow
             swhid-rs-Linux-stable-ubuntu-workflow-
-            swhid-rs-Linux-stable-multi-platform-workflow
             swhid-rs-Linux-stable-multi-platform-workflow-
-            swhid-rs-Linux-stable
             swhid-rs-Linux-stable-
             swhid-rs-Linux-
       
