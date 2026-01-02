@@ -208,8 +208,57 @@ jobs:
           INSTALLED_VERSION=""
           GEM_AVAILABLE=false
           
-          # Check if gem is listed in gem database (now that PATH is set)
-          if gem list -i swhid >/dev/null 2>&1; then
+          # FIRST: Check if executable exists and works (most reliable after cache restore)
+          # This handles cases where cache has files but gem database isn't updated
+          echo "Checking for swhid executable in GEM_BIN_DIR: $GEM_BIN_DIR"
+          if [ -n "$GEM_BIN_DIR" ] && [ -f "$GEM_BIN_DIR/swhid" ] && [ -x "$GEM_BIN_DIR/swhid" ]; then
+            echo "✅ swhid executable found at: $GEM_BIN_DIR/swhid"
+            # Try to use it to check if it works and get version
+            if "$GEM_BIN_DIR/swhid" --version >/dev/null 2>&1; then
+              echo "✅ swhid executable is functional"
+              # Try to get version from executable
+              VERSION_OUTPUT=$("$GEM_BIN_DIR/swhid" --version 2>/dev/null || echo "")
+              echo "Version output: $VERSION_OUTPUT"
+              if [ -n "$VERSION_OUTPUT" ]; then
+                INSTALLED_VERSION=$(echo "$VERSION_OUTPUT" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1 || echo "")
+                echo "Detected version from executable: ${INSTALLED_VERSION}"
+              fi
+              # Mark as available - we'll check version against latest below
+              GEM_AVAILABLE=true
+            else
+              echo "❌ swhid executable found but not functional, will reinstall"
+              GEM_AVAILABLE=false
+            fi
+          else
+            echo "⚠️ swhid executable not found at $GEM_BIN_DIR/swhid"
+            if [ -n "$GEM_BIN_DIR" ]; then
+              echo "Directory exists: $([ -d "$GEM_BIN_DIR" ] && echo 'yes' || echo 'no')"
+              echo "File exists: $([ -f "$GEM_BIN_DIR/swhid" ] && echo 'yes' || echo 'no')"
+              echo "Contents of $GEM_BIN_DIR:"
+              ls -la "$GEM_BIN_DIR" 2>/dev/null | head -10 || echo "Cannot list directory"
+            fi
+          elif command -v swhid >/dev/null 2>&1; then
+            # swhid command is available in PATH
+            SWHID_CMD=$(which swhid)
+            echo "swhid command found in PATH: $SWHID_CMD"
+            
+            # Try to use it to check if it works and get version
+            if swhid --version >/dev/null 2>&1; then
+              echo "swhid executable is functional"
+              # Try to get version from executable
+              VERSION_OUTPUT=$(swhid --version 2>/dev/null || echo "")
+              if [ -n "$VERSION_OUTPUT" ]; then
+                INSTALLED_VERSION=$(echo "$VERSION_OUTPUT" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1 || echo "")
+                echo "Detected version from executable: ${INSTALLED_VERSION}"
+              fi
+              # Mark as available - we'll check version against latest below
+              GEM_AVAILABLE=true
+            else
+              echo "swhid command found but not functional, will reinstall"
+              GEM_AVAILABLE=false
+            fi
+          # SECOND: Check if gem is listed in gem database (less reliable after cache restore)
+          elif gem list -i swhid >/dev/null 2>&1; then
             INSTALLED_VERSION=$(gem list swhid | grep -E "^\s*swhid\s" | sed -E 's/^\s*swhid\s+\(([^)]+)\).*/\1/' | head -1 || echo "")
             echo "swhid gem found via gem list: version ${INSTALLED_VERSION}"
             
@@ -221,26 +270,6 @@ jobs:
               echo "Warning: Cached gem is listed but not usable, will reinstall"
               GEM_AVAILABLE=false
             fi
-          elif command -v swhid >/dev/null 2>&1; then
-            # swhid command is available in PATH but not in gem database
-            echo "swhid command found in PATH: $(which swhid)"
-            echo "Gem files exist but not registered in gem database"
-            
-            # Try to use it to check if it works and get version
-            if swhid --version >/dev/null 2>&1; then
-              echo "swhid executable is functional, but gem database needs refresh"
-              # Try to get version from executable
-              VERSION_OUTPUT=$(swhid --version 2>/dev/null || echo "")
-              if [ -n "$VERSION_OUTPUT" ]; then
-                INSTALLED_VERSION=$(echo "$VERSION_OUTPUT" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1 || echo "")
-                echo "Detected version from executable: ${INSTALLED_VERSION}"
-              fi
-              # Mark as available but we'll still check against latest version
-              GEM_AVAILABLE=true
-            else
-              echo "swhid command found but not functional, will reinstall"
-              GEM_AVAILABLE=false
-            fi
           fi
           
           # Get latest available version
@@ -250,24 +279,49 @@ jobs:
             echo "Latest available swhid gem version: ${LATEST_VERSION}"
             
             # Check if we need to reinstall
-            if [ -n "$INSTALLED_VERSION" ] && [ "$INSTALLED_VERSION" = "$LATEST_VERSION" ] && [ "$GEM_AVAILABLE" = "true" ]; then
-              echo "Cached gem version (${INSTALLED_VERSION}) matches latest and is usable, using cache"
-              gem list swhid
-            else
+            if [ "$GEM_AVAILABLE" = "true" ]; then
               if [ -n "$INSTALLED_VERSION" ]; then
-                echo "Cached gem version (${INSTALLED_VERSION}) differs from latest (${LATEST_VERSION}), reinstalling..."
+                if [ "$INSTALLED_VERSION" = "$LATEST_VERSION" ]; then
+                  echo "Cached gem version (${INSTALLED_VERSION}) matches latest and is usable, using cache"
+                  gem list swhid 2>/dev/null || echo "Note: gem not in database but executable works"
+                else
+                  echo "Cached gem version (${INSTALLED_VERSION}) differs from latest (${LATEST_VERSION}), reinstalling..."
+                  # Uninstall old version if exists, then install latest
+                  gem uninstall swhid -x 2>/dev/null || true
+                  env MAKE="${MAKE}" gem install swhid --no-document || echo "Warning: swhid gem not available, Ruby implementation will be skipped"
+                fi
               else
-                echo "Installing swhid gem (this may take a while for native extensions)..."
+                # Executable works but version unknown - check if it reports the latest version
+                echo "Found working swhid executable but version unknown"
+                if command -v swhid >/dev/null 2>&1; then
+                  VERSION_CHECK=$(swhid --version 2>/dev/null | grep -oE "$LATEST_VERSION" || echo "")
+                  if [ -n "$VERSION_CHECK" ]; then
+                    echo "Executable reports version ${LATEST_VERSION}, matches latest - using cache"
+                  else
+                    echo "Cannot verify version, reinstalling to ensure latest version..."
+                    # Uninstall old version if exists, then install latest
+                    gem uninstall swhid -x 2>/dev/null || true
+                    env MAKE="${MAKE}" gem install swhid --no-document || echo "Warning: swhid gem not available, Ruby implementation will be skipped"
+                  fi
+                else
+                  echo "Executable not in PATH, reinstalling..."
+                  gem uninstall swhid -x 2>/dev/null || true
+                  env MAKE="${MAKE}" gem install swhid --no-document || echo "Warning: swhid gem not available, Ruby implementation will be skipped"
+                fi
               fi
-              # Uninstall old version if exists, then install latest
+            else
+              # Gem not available, install it
+              echo "Installing swhid gem (this may take a while for native extensions)..."
               gem uninstall swhid -x 2>/dev/null || true
               env MAKE="${MAKE}" gem install swhid --no-document || echo "Warning: swhid gem not available, Ruby implementation will be skipped"
             fi
           else
             # Fallback: if we can't check version, use cached gem if available and usable
-            if [ -n "$INSTALLED_VERSION" ] && [ "$GEM_AVAILABLE" = "true" ]; then
-              echo "Cannot check latest version, using cached gem (${INSTALLED_VERSION})"
-              gem list swhid
+            if [ "$GEM_AVAILABLE" = "true" ]; then
+              echo "Cannot check latest version, but found working swhid executable - using cache"
+              if command -v swhid >/dev/null 2>&1; then
+                swhid --version 2>/dev/null || true
+              fi
             else
               echo "Installing swhid gem (this may take a while for native extensions)..."
               env MAKE="${MAKE}" gem install swhid --no-document || echo "Warning: swhid gem not available, Ruby implementation will be skipped"
