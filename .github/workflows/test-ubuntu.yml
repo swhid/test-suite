@@ -57,50 +57,14 @@ jobs:
         continue-on-error: true
         with:
           path: |
-            ~/.gem
+            ~/.gem/ruby
             ~/.local/share/gem
-            ${{ runner.toolCache }}/Ruby/*/x64/lib/ruby/gems
-            ${{ runner.toolCache }}/Ruby/*/x64/bin
-            ${{ runner.toolCache }}/Ruby/*/x64/lib/ruby/site_ruby
+            /opt/hostedtoolcache/Ruby/*/x64/lib/ruby/gems
           # Note: Cache key doesn't include version - we validate after restore
-          # runner.toolCache is /opt/hostedtoolcache on Linux
-          # Cache entire ~/.gem directory (includes specifications) and site_ruby (includes gem load paths)
+          # Use hardcoded /opt/hostedtoolcache for Ubuntu (this workflow only runs on Ubuntu)
           key: swhid-gem-${{ runner.os }}-ruby-3.2
           restore-keys: |
             swhid-gem-${{ runner.os }}-ruby-3.2-
-      
-      - name: Verify cached gem after restore
-        if: steps.cache-swhid-gem.outputs.cache-hit == 'true'
-        shell: bash
-        run: |
-          echo "=== Checking cached gem files ==="
-          TOOL_CACHE="${RUNNER_TOOL_CACHE:-/opt/hostedtoolcache}"
-          
-          echo "Searching for swhid gem files in cached locations..."
-          echo ""
-          echo "1. Checking ~/.gem:"
-          find ~/.gem -name "*swhid*" -type f 2>/dev/null | head -10 || echo "  No swhid files found"
-          
-          echo ""
-          echo "2. Checking ~/.local/share/gem:"
-          find ~/.local/share/gem -name "*swhid*" -type f 2>/dev/null | head -10 || echo "  No swhid files found"
-          
-          echo ""
-          echo "3. Checking $TOOL_CACHE/Ruby:"
-          find "$TOOL_CACHE/Ruby" -name "*swhid*" -type f 2>/dev/null | head -10 || echo "  No swhid files found"
-          
-          echo ""
-          echo "4. Checking for swhid executable:"
-          find ~/.gem ~/.local/share/gem "$TOOL_CACHE/Ruby" -name "swhid" -type f 2>/dev/null | head -5 || echo "  No swhid executable found"
-          
-          echo ""
-          echo "5. Checking gem environment:"
-          gem env 2>/dev/null | grep -E "(INSTALLATION|EXECUTABLE)" || true
-          
-          echo ""
-          echo "6. Checking if gem list can find swhid:"
-          gem list swhid 2>/dev/null || echo "  gem list swhid returned no results"
-        continue-on-error: true
       
       - name: Determine CPU cores
         id: cpu-cores
@@ -143,124 +107,12 @@ jobs:
           echo "Verifying MAKE variable:"
           echo "${MAKE}" | head -1
           
-          # CRITICAL: Set up PATH FIRST before checking if gem is available
-          # This ensures cached gems are found even if gem database isn't updated
-          set +e  # Temporarily disable exit on error for detection logic
-          
-          # Method 1: Check GEM_HOME environment variable (set by ruby/setup-ruby)
-          GEM_BIN_DIR=""
-          if [ -n "$GEM_HOME" ] && [ -d "$GEM_HOME/bin" ]; then
-            GEM_BIN_DIR="$GEM_HOME/bin"
-            echo "Using GEM_HOME/bin: $GEM_BIN_DIR"
-          fi
-          
-          # Method 2: Use gem env to get executable directory
-          if [ -z "$GEM_BIN_DIR" ] || [ ! -d "$GEM_BIN_DIR" ]; then
-            GEM_BIN_DIR=$(gem env 2>/dev/null | grep -E "EXECUTABLE DIRECTORY" | sed -E 's/.*EXECUTABLE DIRECTORY[^:]*: *//' 2>/dev/null | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | head -1 || echo "")
-          fi
-          
-          # Method 3: Try Gem.user_dir
-          if [ -z "$GEM_BIN_DIR" ] || [ ! -d "$GEM_BIN_DIR" ]; then
-            GEM_USER_DIR=$(ruby -e "puts Gem.user_dir" 2>/dev/null || echo "")
-            if [ -n "$GEM_USER_DIR" ] && [ "$GEM_USER_DIR" != "" ]; then
-              GEM_BIN_DIR="$GEM_USER_DIR/bin"
-            fi
-          fi
-          
-          # Method 4: Search for swhid executable and use its directory
-          TOOL_CACHE="${RUNNER_TOOL_CACHE:-/opt/hostedtoolcache}"
-          if [ -z "$GEM_BIN_DIR" ] || [ ! -d "$GEM_BIN_DIR" ] || [ ! -f "$GEM_BIN_DIR/swhid" ]; then
-            SWHID_PATH=$(find ~/.local/share/gem ~/.gem "$TOOL_CACHE/Ruby" -name "swhid" -type f 2>/dev/null | head -1 || echo "")
-            if [ -n "$SWHID_PATH" ] && [ "$SWHID_PATH" != "" ]; then
-              GEM_BIN_DIR=$(dirname "$SWHID_PATH")
-              echo "Found swhid at: $SWHID_PATH"
-            fi
-          fi
-          
-          # Method 5: Try common locations
-          if [ -z "$GEM_BIN_DIR" ] || [ ! -d "$GEM_BIN_DIR" ]; then
-            for dir in ~/.local/share/gem/ruby/*/bin ~/.gem/ruby/*/bin "$TOOL_CACHE/Ruby"/*/x64/lib/ruby/gems/*/bin "$TOOL_CACHE/Ruby"/*/x64/bin; do
-              if [ -d "$dir" ] && [ -f "$dir/swhid" ] 2>/dev/null; then
-                GEM_BIN_DIR="$dir"
-                echo "Found swhid in: $dir"
-                break
-              fi
-            done
-          fi
-          
-          set -e  # Re-enable exit on error
-          
-          # Add to PATH if found (must be done BEFORE checking gem availability)
-          if [ -n "$GEM_BIN_DIR" ] && [ "$GEM_BIN_DIR" != "" ] && [ -d "$GEM_BIN_DIR" ]; then
-            # Add to GITHUB_PATH (affects subsequent steps)
-            echo "$GEM_BIN_DIR" >> $GITHUB_PATH
-            # Also add to current PATH for this step
-            export PATH="$GEM_BIN_DIR:$PATH"
-            echo "✅ Added gem bin directory to PATH: $GEM_BIN_DIR"
-          else
-            echo "⚠️ Warning: Could not determine gem bin directory before checking gem availability"
-            echo "Gem environment:"
-            gem env 2>/dev/null | grep -E "(INSTALLATION|EXECUTABLE|GEM)" || true
-          fi
-          
           # Check if gem is already installed and validate version
-          # PATH is now set up, so gem commands should work correctly
           INSTALLED_VERSION=""
           GEM_AVAILABLE=false
-          
-          # FIRST: Check if executable exists and works (most reliable after cache restore)
-          # This handles cases where cache has files but gem database isn't updated
-          echo "Checking for swhid executable in GEM_BIN_DIR: $GEM_BIN_DIR"
-          if [ -n "$GEM_BIN_DIR" ] && [ -f "$GEM_BIN_DIR/swhid" ] && [ -x "$GEM_BIN_DIR/swhid" ]; then
-            echo "✅ swhid executable found at: $GEM_BIN_DIR/swhid"
-            # Try to use it to check if it works and get version
-            if "$GEM_BIN_DIR/swhid" --version >/dev/null 2>&1; then
-              echo "✅ swhid executable is functional"
-              # Try to get version from executable
-              VERSION_OUTPUT=$("$GEM_BIN_DIR/swhid" --version 2>/dev/null || echo "")
-              echo "Version output: $VERSION_OUTPUT"
-              if [ -n "$VERSION_OUTPUT" ]; then
-                INSTALLED_VERSION=$(echo "$VERSION_OUTPUT" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1 || echo "")
-                echo "Detected version from executable: ${INSTALLED_VERSION}"
-              fi
-              # Mark as available - we'll check version against latest below
-              GEM_AVAILABLE=true
-            else
-              echo "❌ swhid executable found but not functional, will reinstall"
-              GEM_AVAILABLE=false
-            fi
-          else
-            echo "⚠️ swhid executable not found at $GEM_BIN_DIR/swhid"
-            if [ -n "$GEM_BIN_DIR" ]; then
-              echo "Directory exists: $([ -d "$GEM_BIN_DIR" ] && echo 'yes' || echo 'no')"
-              echo "File exists: $([ -f "$GEM_BIN_DIR/swhid" ] && echo 'yes' || echo 'no')"
-              echo "Contents of $GEM_BIN_DIR:"
-              ls -la "$GEM_BIN_DIR" 2>/dev/null | head -10 || echo "Cannot list directory"
-            fi
-          elif command -v swhid >/dev/null 2>&1; then
-            # swhid command is available in PATH
-            SWHID_CMD=$(which swhid)
-            echo "swhid command found in PATH: $SWHID_CMD"
-            
-            # Try to use it to check if it works and get version
-            if swhid --version >/dev/null 2>&1; then
-              echo "swhid executable is functional"
-              # Try to get version from executable
-              VERSION_OUTPUT=$(swhid --version 2>/dev/null || echo "")
-              if [ -n "$VERSION_OUTPUT" ]; then
-                INSTALLED_VERSION=$(echo "$VERSION_OUTPUT" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1 || echo "")
-                echo "Detected version from executable: ${INSTALLED_VERSION}"
-              fi
-              # Mark as available - we'll check version against latest below
-              GEM_AVAILABLE=true
-            else
-              echo "swhid command found but not functional, will reinstall"
-              GEM_AVAILABLE=false
-            fi
-          # SECOND: Check if gem is listed in gem database (less reliable after cache restore)
-          elif gem list -i swhid >/dev/null 2>&1; then
+          if gem list -i swhid >/dev/null 2>&1; then
             INSTALLED_VERSION=$(gem list swhid | grep -E "^\s*swhid\s" | sed -E 's/^\s*swhid\s+\(([^)]+)\).*/\1/' | head -1 || echo "")
-            echo "swhid gem found via gem list: version ${INSTALLED_VERSION}"
+            echo "swhid gem found in cache: version ${INSTALLED_VERSION}"
             
             # Verify gem is actually usable (not just listed)
             if ruby -r swhid -e "true" 2>/dev/null; then
@@ -279,63 +131,89 @@ jobs:
             echo "Latest available swhid gem version: ${LATEST_VERSION}"
             
             # Check if we need to reinstall
-            if [ "$GEM_AVAILABLE" = "true" ]; then
-              if [ -n "$INSTALLED_VERSION" ]; then
-                if [ "$INSTALLED_VERSION" = "$LATEST_VERSION" ]; then
-                  echo "Cached gem version (${INSTALLED_VERSION}) matches latest and is usable, using cache"
-                  gem list swhid 2>/dev/null || echo "Note: gem not in database but executable works"
-                else
-                  echo "Cached gem version (${INSTALLED_VERSION}) differs from latest (${LATEST_VERSION}), reinstalling..."
-                  # Uninstall old version if exists, then install latest
-                  gem uninstall swhid -x 2>/dev/null || true
-                  env MAKE="${MAKE}" gem install swhid --no-document || echo "Warning: swhid gem not available, Ruby implementation will be skipped"
-                fi
-              else
-                # Executable works but version unknown - check if it reports the latest version
-                echo "Found working swhid executable but version unknown"
-                if command -v swhid >/dev/null 2>&1; then
-                  VERSION_CHECK=$(swhid --version 2>/dev/null | grep -oE "$LATEST_VERSION" || echo "")
-                  if [ -n "$VERSION_CHECK" ]; then
-                    echo "Executable reports version ${LATEST_VERSION}, matches latest - using cache"
-                  else
-                    echo "Cannot verify version, reinstalling to ensure latest version..."
-                    # Uninstall old version if exists, then install latest
-                    gem uninstall swhid -x 2>/dev/null || true
-                    env MAKE="${MAKE}" gem install swhid --no-document || echo "Warning: swhid gem not available, Ruby implementation will be skipped"
-                  fi
-                else
-                  echo "Executable not in PATH, reinstalling..."
-                  gem uninstall swhid -x 2>/dev/null || true
-                  env MAKE="${MAKE}" gem install swhid --no-document || echo "Warning: swhid gem not available, Ruby implementation will be skipped"
-                fi
-              fi
+            if [ -n "$INSTALLED_VERSION" ] && [ "$INSTALLED_VERSION" = "$LATEST_VERSION" ] && [ "$GEM_AVAILABLE" = "true" ]; then
+              echo "Cached gem version (${INSTALLED_VERSION}) matches latest and is usable, using cache"
+              gem list swhid
             else
-              # Gem not available, install it
-              echo "Installing swhid gem (this may take a while for native extensions)..."
+              if [ -n "$INSTALLED_VERSION" ]; then
+                echo "Cached gem version (${INSTALLED_VERSION}) differs from latest (${LATEST_VERSION}), reinstalling..."
+              else
+                echo "Installing swhid gem (this may take a while for native extensions)..."
+              fi
+              # Uninstall old version if exists, then install latest
               gem uninstall swhid -x 2>/dev/null || true
               env MAKE="${MAKE}" gem install swhid --no-document || echo "Warning: swhid gem not available, Ruby implementation will be skipped"
             fi
           else
             # Fallback: if we can't check version, use cached gem if available and usable
-            if [ "$GEM_AVAILABLE" = "true" ]; then
-              echo "Cannot check latest version, but found working swhid executable - using cache"
-              if command -v swhid >/dev/null 2>&1; then
-                swhid --version 2>/dev/null || true
-              fi
+            if [ -n "$INSTALLED_VERSION" ] && [ "$GEM_AVAILABLE" = "true" ]; then
+              echo "Cannot check latest version, using cached gem (${INSTALLED_VERSION})"
+              gem list swhid
             else
               echo "Installing swhid gem (this may take a while for native extensions)..."
               env MAKE="${MAKE}" gem install swhid --no-document || echo "Warning: swhid gem not available, Ruby implementation will be skipped"
             fi
           fi
           
-          # Verify swhid command is accessible (PATH was already set up above)
+          # Ensure gem bin directory is in PATH for harness to find swhid command
+          # ruby/setup-ruby should do this, but let's be explicit
+          set +e  # Temporarily disable exit on error for detection logic
+          
+          # Method 1: Use gem env to get executable directory
+          GEM_BIN_DIR=$(gem env 2>/dev/null | grep -E "EXECUTABLE DIRECTORY" | sed 's/.*: *//' 2>/dev/null | head -1 || echo "")
+          
+          # Method 2: Try Gem.user_dir
+          if [ -z "$GEM_BIN_DIR" ] || [ ! -d "$GEM_BIN_DIR" ]; then
+            GEM_USER_DIR=$(ruby -e "puts Gem.user_dir" 2>/dev/null || echo "")
+            if [ -n "$GEM_USER_DIR" ] && [ "$GEM_USER_DIR" != "" ]; then
+              GEM_BIN_DIR="$GEM_USER_DIR/bin"
+            fi
+          fi
+          
+          # Method 3: Search for swhid executable and use its directory
+          if [ -z "$GEM_BIN_DIR" ] || [ ! -d "$GEM_BIN_DIR" ] || [ ! -f "$GEM_BIN_DIR/swhid" ]; then
+            # Search in common gem installation locations
+            SWHID_PATH=$(find ~/.local/share/gem ~/.gem /opt/hostedtoolcache/Ruby -name swhid -type f 2>/dev/null | head -1 || echo "")
+            if [ -n "$SWHID_PATH" ] && [ "$SWHID_PATH" != "" ]; then
+              GEM_BIN_DIR=$(dirname "$SWHID_PATH")
+              echo "Found swhid at: $SWHID_PATH"
+            fi
+          fi
+          
+          # Method 4: Try common locations
+          if [ -z "$GEM_BIN_DIR" ] || [ ! -d "$GEM_BIN_DIR" ]; then
+            for dir in ~/.local/share/gem/ruby/*/bin ~/.gem/ruby/*/bin /opt/hostedtoolcache/Ruby/*/x64/lib/ruby/gems/*/bin; do
+              if [ -d "$dir" ] && [ -f "$dir/swhid" ] 2>/dev/null; then
+                GEM_BIN_DIR="$dir"
+                echo "Found swhid in: $dir"
+                break
+              fi
+            done
+          fi
+          
+          set -e  # Re-enable exit on error
+          
+          # Add to PATH if found
+          if [ -n "$GEM_BIN_DIR" ] && [ "$GEM_BIN_DIR" != "" ] && [ -d "$GEM_BIN_DIR" ]; then
+            # Add to GITHUB_PATH (affects subsequent steps)
+            echo "$GEM_BIN_DIR" >> $GITHUB_PATH
+            # Also add to current PATH for this step
+            export PATH="$GEM_BIN_DIR:$PATH"
+            echo "✅ Added gem bin directory to PATH: $GEM_BIN_DIR"
+          else
+            echo "⚠️ Warning: Could not determine gem bin directory"
+            echo "Gem environment:"
+            gem env 2>/dev/null | grep -E "(EXECUTABLE|INSTALLATION)" || true
+          fi
+          
+          # Verify swhid command is accessible
           if command -v swhid >/dev/null 2>&1; then
             echo "✅ swhid command found in PATH: $(which swhid)"
           else
-            echo "⚠️ Warning: swhid command not found in PATH after installation"
+            echo "⚠️ Warning: swhid command not found in PATH, but gem is installed"
             echo "Gem bin directory: $GEM_BIN_DIR"
             echo "Searching for swhid command..."
-            find ~/.local/share/gem ~/.gem "$TOOL_CACHE/Ruby" -name swhid -type f 2>/dev/null | head -5 || echo "Not found in common locations"
+            find ~/.local/share/gem ~/.gem /opt/hostedtoolcache/Ruby -name swhid -type f 2>/dev/null | head -5 || echo "Not found in common locations"
             echo "Current PATH: $PATH"
           fi
         continue-on-error: true
