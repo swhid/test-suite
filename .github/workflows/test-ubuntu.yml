@@ -300,6 +300,22 @@ jobs:
           fi
         continue-on-error: true
       
+      - name: Fix binary permissions after cache restore
+        shell: bash
+        run: |
+          echo "=== Ensuring binary is executable ==="
+          # When cache is restored, file permissions might not be preserved correctly
+          # Ensure the swhid binary is executable
+          if [ -f /tmp/swhid-rs/target/release/swhid ]; then
+            echo "Setting execute permissions on cached binary..."
+            chmod +x /tmp/swhid-rs/target/release/swhid
+            echo "✅ Binary permissions fixed"
+            ls -l /tmp/swhid-rs/target/release/swhid || true
+          else
+            echo "No binary found yet (will be built or permissions set during build)"
+          fi
+        continue-on-error: true
+      
       - name: Setup SSH for private repository access (optional)
         shell: bash
         run: |
@@ -436,6 +452,11 @@ jobs:
                 BUILD_EXIT_CODE=${PIPESTATUS[0]}
                 if [ $BUILD_EXIT_CODE -eq 0 ]; then
                   REBUILT=true
+                  # Ensure binary is executable (Cargo should set this, but be explicit)
+                  if [ -f target/release/swhid ]; then
+                    chmod +x target/release/swhid
+                    echo "✅ Binary built and permissions set"
+                  fi
                   # Save the commit hash for future cache validation
                   # Ensure target directory exists and write commit marker
                   mkdir -p target
