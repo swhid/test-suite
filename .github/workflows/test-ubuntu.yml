@@ -258,14 +258,18 @@ jobs:
           # Use /tmp/swhid-rs/target - works on all platforms with bash shell
           # Try workflow-specific cache first, then fall back to generic cache
           # This allows both workflows to share caches while avoiding save conflicts
-          # Note: We use a simple key without commit hash for reliable restore
-          # The commit marker file inside the cache is used to validate if cache matches current commit
+          # Note: Cache keys include commit hash from swhid-rs repo (format: key-<commit-hash>)
+          # Since we don't know the commit hash yet (repo not cloned), we use restore-keys
+          # restore-keys use prefix matching and return the most recently created cache
+          # The commit marker file inside the cache will validate if it matches current commit
           path: /tmp/swhid-rs/target
-          key: swhid-rs-Linux-stable-ubuntu-workflow
+          # Use a key that won't match - restore-keys will find the most recent cache with matching prefix
+          # According to GitHub docs: if multiple caches match a restore-key, the most recently created is used
+          key: swhid-rs-Linux-stable-ubuntu-workflow-${{ github.run_id }}-no-match
           restore-keys: |
-            swhid-rs-Linux-stable-ubuntu-workflow
-            swhid-rs-Linux-stable-multi-platform-workflow
-            swhid-rs-Linux-stable
+            swhid-rs-Linux-stable-ubuntu-workflow-
+            swhid-rs-Linux-stable-multi-platform-workflow-
+            swhid-rs-Linux-stable-
             swhid-rs-Linux-
       
       - name: Check cache restore status
@@ -800,12 +804,10 @@ jobs:
           path: |
             /tmp/swhid-rs-cache/target
             /tmp/swhid-rs-cache
-          # Use simple key without commit hash for reliable restore
-          # The commit marker file inside the cache validates if it matches current commit
+          # Include commit hash in cache key - each commit gets its own cache
+          # This allows multiple commits to have caches simultaneously
+          # restore-keys with prefix matching will find the most recent cache
           # NOTE: GitHub Actions caches are IMMUTABLE - once created, they cannot be overwritten.
-          # If a cache with this key already exists, the save will fail with "Unable to reserve cache".
-          # This is expected and harmless (continue-on-error handles it). The existing cache will remain.
-          # The commit marker validation ensures we rebuild when commit changes, so stale caches
-          # are detected and new builds are triggered. The cache will only be updated if it's deleted
-          # or expires (7 days of no access), allowing a new cache to be created with the same key.
-          key: swhid-rs-Linux-stable-ubuntu-workflow
+          # If a cache with this exact key already exists, the save will fail with "Unable to reserve cache".
+          # This is expected and harmless (continue-on-error handles it) - it means we already have this cache.
+          key: swhid-rs-Linux-stable-ubuntu-workflow-${{ steps.get-commit-hash.outputs.commit_hash }}
