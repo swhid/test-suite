@@ -787,8 +787,18 @@ jobs:
           fi
         continue-on-error: true
       
-      - name: Save swhid-rs build cache
+      - name: Check if cache already exists
         if: steps.download-artifacts.outcome == 'success' && steps.get-commit-hash.outcome == 'success'
+        id: check-cache-exists
+        uses: actions/cache/restore@v4
+        continue-on-error: true
+        with:
+          # Use a dummy path - we're just checking if the cache exists
+          path: /tmp/cache-check-dummy
+          key: swhid-rs-Linux-stable-ubuntu-workflow-${{ steps.get-commit-hash.outputs.commit_hash }}
+      
+      - name: Save swhid-rs build cache
+        if: steps.download-artifacts.outcome == 'success' && steps.get-commit-hash.outcome == 'success' && steps.check-cache-exists.outputs.cache-hit != 'true'
         uses: actions/cache/save@v4
         continue-on-error: true
         with:
@@ -799,8 +809,13 @@ jobs:
             /tmp/swhid-rs-cache/target
             /tmp/swhid-rs-cache
           # Include commit hash in cache key to avoid conflicts when multiple workflow runs
-          # try to save the same cache simultaneously. The restore step uses restore-keys
-          # to allow restoring from other commits, so this doesn't break cache sharing.
-          # If two runs for the same commit happen simultaneously, one may fail to save,
-          # but that's acceptable since the cache will still be available from the successful run.
+          # try to save the same cache simultaneously. GitHub Actions caches are immutable,
+          # so if a cache already exists for this commit, we skip saving (checked above).
           key: swhid-rs-Linux-stable-ubuntu-workflow-${{ steps.get-commit-hash.outputs.commit_hash }}
+      
+      - name: Skip cache save (cache already exists)
+        if: steps.download-artifacts.outcome == 'success' && steps.get-commit-hash.outcome == 'success' && steps.check-cache-exists.outputs.cache-hit == 'true'
+        shell: bash
+        run: |
+          echo "✅ Cache already exists for commit ${{ steps.get-commit-hash.outputs.commit_hash }}"
+          echo "Skipping cache save - cache is immutable and already exists"
