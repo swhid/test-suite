@@ -69,6 +69,39 @@ jobs:
           restore-keys: |
             swhid-gem-${{ runner.os }}-ruby-3.2-
       
+      - name: Verify cached gem after restore
+        if: steps.cache-swhid-gem.outputs.cache-hit == 'true'
+        shell: bash
+        run: |
+          echo "=== Checking cached gem files ==="
+          TOOL_CACHE="${RUNNER_TOOL_CACHE:-/opt/hostedtoolcache}"
+          
+          echo "Searching for swhid gem files in cached locations..."
+          echo ""
+          echo "1. Checking ~/.gem:"
+          find ~/.gem -name "*swhid*" -type f 2>/dev/null | head -10 || echo "  No swhid files found"
+          
+          echo ""
+          echo "2. Checking ~/.local/share/gem:"
+          find ~/.local/share/gem -name "*swhid*" -type f 2>/dev/null | head -10 || echo "  No swhid files found"
+          
+          echo ""
+          echo "3. Checking $TOOL_CACHE/Ruby:"
+          find "$TOOL_CACHE/Ruby" -name "*swhid*" -type f 2>/dev/null | head -10 || echo "  No swhid files found"
+          
+          echo ""
+          echo "4. Checking for swhid executable:"
+          find ~/.gem ~/.local/share/gem "$TOOL_CACHE/Ruby" -name "swhid" -type f 2>/dev/null | head -5 || echo "  No swhid executable found"
+          
+          echo ""
+          echo "5. Checking gem environment:"
+          gem env 2>/dev/null | grep -E "(INSTALLATION|EXECUTABLE)" || true
+          
+          echo ""
+          echo "6. Checking if gem list can find swhid:"
+          gem list swhid 2>/dev/null || echo "  gem list swhid returned no results"
+        continue-on-error: true
+      
       - name: Determine CPU cores
         id: cpu-cores
         shell: bash
@@ -111,11 +144,16 @@ jobs:
           echo "${MAKE}" | head -1
           
           # Check if gem is already installed and validate version
+          # First check if gem files actually exist (more reliable than gem list after cache restore)
           INSTALLED_VERSION=""
           GEM_AVAILABLE=false
+          TOOL_CACHE="${RUNNER_TOOL_CACHE:-/opt/hostedtoolcache}"
+          SWHID_EXECUTABLE=$(find ~/.local/share/gem ~/.gem "$TOOL_CACHE/Ruby" -name "swhid" -type f 2>/dev/null | head -1 || echo "")
+          
+          # Check if gem is listed in gem database
           if gem list -i swhid >/dev/null 2>&1; then
             INSTALLED_VERSION=$(gem list swhid | grep -E "^\s*swhid\s" | sed -E 's/^\s*swhid\s+\(([^)]+)\).*/\1/' | head -1 || echo "")
-            echo "swhid gem found in cache: version ${INSTALLED_VERSION}"
+            echo "swhid gem found via gem list: version ${INSTALLED_VERSION}"
             
             # Verify gem is actually usable (not just listed)
             if ruby -r swhid -e "true" 2>/dev/null; then
@@ -123,6 +161,26 @@ jobs:
               echo "Verified: Cached gem is usable"
             else
               echo "Warning: Cached gem is listed but not usable, will reinstall"
+              GEM_AVAILABLE=false
+            fi
+          elif [ -n "$SWHID_EXECUTABLE" ] && [ -f "$SWHID_EXECUTABLE" ]; then
+            # Gem files exist but not in gem database - try to verify it works
+            echo "swhid executable found at: $SWHID_EXECUTABLE"
+            echo "Gem files exist but not registered in gem database"
+            
+            # Try to use it directly to check if it works
+            if "$SWHID_EXECUTABLE" --version >/dev/null 2>&1; then
+              echo "swhid executable is functional, but gem database needs refresh"
+              # Try to get version from executable or gem files
+              VERSION_OUTPUT=$("$SWHID_EXECUTABLE" --version 2>/dev/null || echo "")
+              if [ -n "$VERSION_OUTPUT" ]; then
+                INSTALLED_VERSION=$(echo "$VERSION_OUTPUT" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1 || echo "")
+                echo "Detected version from executable: ${INSTALLED_VERSION}"
+              fi
+              # Mark as available but we'll still check against latest version
+              GEM_AVAILABLE=true
+            else
+              echo "swhid executable found but not functional, will reinstall"
               GEM_AVAILABLE=false
             fi
           fi
