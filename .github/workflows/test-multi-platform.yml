@@ -1323,6 +1323,8 @@ jobs:
   performance-baseline:
     needs: test
     runs-on: ubuntu-24.04
+    permissions:
+      contents: read
     
     steps:
       - name: Checkout code
