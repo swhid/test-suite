@@ -67,7 +67,7 @@ class ResourceManager:
         logger.debug(f"Extracted to: {extracted_path}")
         return extracted_path
     
-    def cleanup_temp_dirs(self):
+    def cleanup_temp_dirs(self) -> None:
         """Clean up temporary directories created from tarballs."""
         for temp_dir in self._temp_dirs:
             if os.path.exists(temp_dir):
@@ -82,7 +82,7 @@ class ResourceManager:
                     logger.warning(f"Failed to clean up temporary directory {temp_dir}: {e}")
         self._temp_dirs.clear()
     
-    def _rmtree_windows(self, path: str):
+    def _rmtree_windows(self, path: str) -> None:
         """
         Windows-specific recursive delete that handles locked files gracefully.
         

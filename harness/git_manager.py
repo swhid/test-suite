@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 class GitManager:
     """Manages Git repository operations."""
     
-    def create_minimal_git_repo(self, repo_path: str):
+    def create_minimal_git_repo(self, repo_path: str) -> None:
         """
         Create a small git repository with one commit, one tag, and default HEAD.
         This is used to test snapshot identifiers.

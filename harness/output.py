@@ -5,10 +5,10 @@ This module handles result serialization, formatting, and summary generation.
 """
 
 import platform
-from typing import List, Dict
+from typing import List, Dict, Callable, Tuple, Optional
 from datetime import datetime
 
-from .plugins.base import SwhidImplementation, ImplementationInfo
+from .plugins.base import SwhidImplementation, ImplementationInfo, SwhidTestResult
 from .models import (
     HarnessResults, RunInfo, RunnerInfo, Implementation, TestCase,
     ExpectedRef, Result, Metrics, ErrorInfo, Aggregates,
@@ -23,7 +23,11 @@ logger = logging.getLogger(__name__)
 class OutputGenerator:
     """Generates output formats from test results."""
     
-    def __init__(self, implementations: Dict[str, SwhidImplementation], get_impl_git_sha_func):
+    def __init__(
+        self,
+        implementations: Dict[str, SwhidImplementation],
+        get_impl_git_sha_func: Callable[[str, ImplementationInfo], Optional[str]]
+    ) -> None:
         """
         Initialize output generator.
         
@@ -173,7 +177,11 @@ class OutputGenerator:
             return "negative"
         return "unknown"
     
-    def _determine_status(self, test_result, comparison_result):
+    def _determine_status(
+        self,
+        test_result: SwhidTestResult,
+        comparison_result: ComparisonResult
+    ) -> Tuple[str, Optional[ErrorInfo], Optional[str]]:
         """Determine status, error, and swhid for a test result."""
         from .harness import SwhidHarness  # Import here to avoid circular dependency
         
@@ -253,7 +261,7 @@ class OutputGenerator:
                 status = "PASS"
                 return status, None, test_result.swhid
     
-    def _classify_error_string(self, error_str: str) -> tuple[str, str]:
+    def _classify_error_string(self, error_str: str) -> Tuple[str, str]:
         """Classify error string into error code and subtype."""
         error_lower = error_str.lower()
         
@@ -320,7 +328,7 @@ class OutputGenerator:
         
         return Aggregates(by_implementation=aggregates_data)
     
-    def print_summary(self, canonical_results: HarnessResults):
+    def print_summary(self, canonical_results: HarnessResults) -> None:
         """Print summary of test results."""
         # This is a simplified version - full implementation would be in harness
         # For now, delegate to the existing method in harness
