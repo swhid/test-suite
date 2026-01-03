@@ -102,3 +102,7 @@ payloads/git/synthetic/
 payloads/git/test-repo/
 # Pattern to catch any other dynamically created repos in payloads/git/
 payloads/git/*/.git/
+
+# Commit squashing scripts (local tools, not tracked)
+auto-squash-commits.sh
+AUTO_SQUASH_README.md
