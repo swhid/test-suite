@@ -86,15 +86,19 @@ class TestSwhidHarness:
             config = {
                 "output": {"results_dir": "test_results"},
                 "settings": {"parallel_tests": 2},
-                "payloads": {}
+                "payloads": {
+                    "content": [
+                        {"name": "test", "path": "/test/path"}
+                    ]
+                }
             }
             yaml.dump(config, f)
             config_path = f.name
         
         try:
             harness = SwhidHarness(config_path)
-            assert harness.config["output"]["results_dir"] == "test_results"
-            assert harness.config["settings"]["parallel_tests"] == 2
+            assert harness.config.output.results_dir == "test_results"
+            assert harness.config.settings.parallel_tests == 2
         finally:
             os.unlink(config_path)
     
@@ -115,7 +119,11 @@ class TestSwhidHarness:
             config = {
                 "output": {"results_dir": "test_results"},
                 "settings": {"parallel_tests": 2},
-                "payloads": {}
+                "payloads": {
+                    "content": [
+                        {"name": "test", "path": "/test/path"}
+                    ]
+                }
             }
             yaml.dump(config, f)
             config_path = f.name
@@ -147,7 +155,11 @@ class TestSwhidHarness:
             config = {
                 "output": {"results_dir": "test_results"},
                 "settings": {"parallel_tests": 2},
-                "payloads": {}
+                "payloads": {
+                    "content": [
+                        {"name": "test", "path": "/test/path"}
+                    ]
+                }
             }
             yaml.dump(config, f)
             config_path = f.name
@@ -171,6 +183,20 @@ class TestSwhidHarness:
             f.flush()
             
             harness = SwhidHarness.__new__(SwhidHarness)  # Create without __init__
+            from harness.config import HarnessConfig, OutputConfig, SettingsConfig
+            from harness.resource_manager import ResourceManager
+            from harness.git_manager import GitManager
+            harness.config = HarnessConfig(
+                schema_version="1.0.0",
+                output=OutputConfig(results_dir="test_results"),
+                payloads={"content": [{"name": "test", "path": "/test"}]},
+                settings=SettingsConfig(parallel_tests=1)
+            )
+            harness.config_path = "/tmp/test_config.yaml"
+            harness.implementations = {"test-impl": impl}
+            harness.resource_manager = ResourceManager()
+            harness.git_manager = GitManager()
+            harness.test_runner = None  # Will be initialized lazily
             result = harness._run_single_test(impl, f.name, "test_file")
             
             assert result.success is True
@@ -187,6 +213,20 @@ class TestSwhidHarness:
             f.flush()
             
             harness = SwhidHarness.__new__(SwhidHarness)  # Create without __init__
+            from harness.config import HarnessConfig, OutputConfig, SettingsConfig
+            from harness.resource_manager import ResourceManager
+            from harness.git_manager import GitManager
+            harness.config = HarnessConfig(
+                schema_version="1.0.0",
+                output=OutputConfig(results_dir="test_results"),
+                payloads={"content": [{"name": "test", "path": "/test"}]},
+                settings=SettingsConfig(parallel_tests=1)
+            )
+            harness.config_path = "/tmp/test_config.yaml"
+            harness.implementations = {"test-impl": impl}
+            harness.resource_manager = ResourceManager()
+            harness.git_manager = GitManager()
+            harness.test_runner = None  # Will be initialized lazily
             result = harness._run_single_test(impl, f.name, "test_file")
             
             assert result.success is False
@@ -201,6 +241,8 @@ class TestSwhidHarness:
         }
         
         harness = SwhidHarness.__new__(SwhidHarness)  # Create without __init__
+        from harness.comparator import ResultComparator
+        harness.comparator = ResultComparator()
         comparison = harness._compare_results("test.txt", "/path/to/test.txt", results)
         
         assert comparison.all_match is True
@@ -215,6 +257,8 @@ class TestSwhidHarness:
         }
         
         harness = SwhidHarness.__new__(SwhidHarness)  # Create without __init__
+        from harness.comparator import ResultComparator
+        harness.comparator = ResultComparator()
         comparison = harness._compare_results("test.txt", "/path/to/test.txt", results)
         
         assert comparison.all_match is False
@@ -227,6 +271,8 @@ class TestSwhidHarness:
         }
         
         harness = SwhidHarness.__new__(SwhidHarness)  # Create without __init__
+        from harness.comparator import ResultComparator
+        harness.comparator = ResultComparator()
         comparison = harness._compare_results("test.txt", "/path/to/test.txt", results)
         
         assert comparison.all_match is False
@@ -239,6 +285,8 @@ class TestSwhidHarness:
         }
         
         harness = SwhidHarness.__new__(SwhidHarness)  # Create without __init__
+        from harness.comparator import ResultComparator
+        harness.comparator = ResultComparator()
         comparison = harness._compare_results("test.txt", "/path/to/test.txt", results, "swh:1:cnt:expected123")
         
         assert comparison.all_match is True
@@ -252,6 +300,8 @@ class TestSwhidHarness:
         }
         
         harness = SwhidHarness.__new__(SwhidHarness)  # Create without __init__
+        from harness.comparator import ResultComparator
+        harness.comparator = ResultComparator()
         comparison = harness._compare_results("test.txt", "/path/to/test.txt", results, "swh:1:cnt:expected123")
         
         assert comparison.all_match is False
@@ -264,6 +314,8 @@ class TestSwhidHarness:
         }
         
         harness = SwhidHarness.__new__(SwhidHarness)  # Create without __init__
+        from harness.comparator import ResultComparator
+        harness.comparator = ResultComparator()
         comparison = harness._compare_results("test.txt", "/path/to/test.txt", results, expected_error="COMPUTE_ERROR")
         
         # Negative test passes when all implementations correctly reject invalid input
@@ -278,6 +330,8 @@ class TestSwhidHarness:
         }
         
         harness = SwhidHarness.__new__(SwhidHarness)
+        from harness.comparator import ResultComparator
+        harness.comparator = ResultComparator()
         comparison = harness._compare_results("test.txt", "/path/to/test.txt", results)
         
         assert comparison.all_match is True
@@ -288,9 +342,23 @@ class TestSwhidHarness:
         mock_run.return_value = MagicMock(stdout="* main\n", returncode=0)
         
         harness = SwhidHarness.__new__(SwhidHarness)
-        harness.config = {"settings": {"parallel_tests": 1}}
+        from harness.config import HarnessConfig, OutputConfig, SettingsConfig
+        from harness.resource_manager import ResourceManager
+        from harness.git_manager import GitManager
+        from harness.comparator import ResultComparator
+        harness.config = HarnessConfig(
+            schema_version="1.0.0",
+            output=OutputConfig(results_dir="test_results"),
+            payloads={"content": [{"name": "test", "path": "/test"}]},
+            settings=SettingsConfig(parallel_tests=1)
+        )
+        harness.config_path = "/tmp/test_config.yaml"
         harness.results_dir = Path("test_results")
         harness.implementations = {"impl": MockImplementation("impl")}
+        harness.resource_manager = ResourceManager()
+        harness.git_manager = GitManager()
+        harness.comparator = ResultComparator()
+        harness.test_runner = None
         with tempfile.TemporaryDirectory() as repo_dir:
             harness._extract_tarball_if_needed = lambda path: path
             harness._run_single_test = Mock(return_value=SwhidTestResult(

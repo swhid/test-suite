@@ -25,6 +25,20 @@ class TestHarnessV2Support:
             f.flush()
             
             harness = SwhidHarness.__new__(SwhidHarness)
+            from harness.config import HarnessConfig, OutputConfig, SettingsConfig
+            from harness.resource_manager import ResourceManager
+            from harness.git_manager import GitManager
+            harness.config = HarnessConfig(
+                schema_version="1.0.0",
+                output=OutputConfig(results_dir="test_results"),
+                payloads={"content": [{"name": "test", "path": "/test"}]},
+                settings=SettingsConfig(parallel_tests=1)
+            )
+            harness.config_path = "/tmp/test_config.yaml"
+            harness.implementations = {"test-impl": impl}
+            harness.resource_manager = ResourceManager()
+            harness.git_manager = GitManager()
+            harness.test_runner = None  # Will be initialized lazily
             
             # Mock compute_swhid to capture arguments
             original_compute = impl.compute_swhid
@@ -55,6 +69,20 @@ class TestHarnessV2Support:
             f.flush()
             
             harness = SwhidHarness.__new__(SwhidHarness)
+            from harness.config import HarnessConfig, OutputConfig, SettingsConfig
+            from harness.resource_manager import ResourceManager
+            from harness.git_manager import GitManager
+            harness.config = HarnessConfig(
+                schema_version="1.0.0",
+                output=OutputConfig(results_dir="test_results"),
+                payloads={"content": [{"name": "test", "path": "/test"}]},
+                settings=SettingsConfig(parallel_tests=1)
+            )
+            harness.config_path = "/tmp/test_config.yaml"
+            harness.implementations = {"test-impl": impl}
+            harness.resource_manager = ResourceManager()
+            harness.git_manager = GitManager()
+            harness.test_runner = None  # Will be initialized lazily
             result = harness._run_single_test(impl, f.name, "test_file", category="content")
             
             assert result.success is True
@@ -68,6 +96,8 @@ class TestHarnessV2Support:
         }
         
         harness = SwhidHarness.__new__(SwhidHarness)
+        from harness.comparator import ResultComparator
+        harness.comparator = ResultComparator()
         comparison = harness._compare_results(
             "test.txt", "/path/to/test.txt", results,
             expected_swhid="swh:1:cnt:abc123"
@@ -85,6 +115,8 @@ class TestHarnessV2Support:
         }
         
         harness = SwhidHarness.__new__(SwhidHarness)
+        from harness.comparator import ResultComparator
+        harness.comparator = ResultComparator()
         comparison = harness._compare_results(
             "test.txt", "/path/to/test.txt", results,
             expected_swhid=None,
@@ -104,6 +136,8 @@ class TestHarnessV2Support:
         }
         
         harness = SwhidHarness.__new__(SwhidHarness)
+        from harness.comparator import ResultComparator
+        harness.comparator = ResultComparator()
         comparison = harness._compare_results(
             "test.txt", "/path/to/test.txt", results,
             expected_swhid="swh:1:cnt:abc123",
@@ -122,6 +156,8 @@ class TestHarnessV2Support:
         }
         
         harness = SwhidHarness.__new__(SwhidHarness)
+        from harness.comparator import ResultComparator
+        harness.comparator = ResultComparator()
         comparison = harness._compare_results(
             "test.txt", "/path/to/test.txt", results,
             expected_swhid="swh:1:cnt:expected123"
@@ -137,6 +173,8 @@ class TestHarnessV2Support:
         }
         
         harness = SwhidHarness.__new__(SwhidHarness)
+        from harness.comparator import ResultComparator
+        harness.comparator = ResultComparator()
         comparison = harness._compare_results(
             "test.txt", "/path/to/test.txt", results,
             expected_swhid=None,
@@ -175,9 +213,9 @@ class TestHarnessV2Support:
             # The test should extract both expected values
             # We can't easily test the full run without actual payloads,
             # but we can verify the config is loaded correctly
-            payload = harness.config["payloads"]["content"][0]
-            assert payload.get("expected_swhid") == "swh:1:cnt:abc123"
-            assert payload.get("expected_swhid_sha256") == "swh:2:cnt:def456"
+            payload = harness.config.payloads["content"][0]
+            assert payload.expected_swhid == "swh:1:cnt:abc123"
+            assert payload.expected_swhid_sha256 == "swh:2:cnt:def456"
         finally:
             os.unlink(config_path)
     
@@ -190,6 +228,20 @@ class TestHarnessV2Support:
             f.flush()
             
             harness = SwhidHarness.__new__(SwhidHarness)
+            from harness.config import HarnessConfig, OutputConfig, SettingsConfig
+            from harness.resource_manager import ResourceManager
+            from harness.git_manager import GitManager
+            harness.config = HarnessConfig(
+                schema_version="1.0.0",
+                output=OutputConfig(results_dir="test_results"),
+                payloads={"content": [{"name": "test", "path": "/test"}]},
+                settings=SettingsConfig(parallel_tests=1)
+            )
+            harness.config_path = "/tmp/test_config.yaml"
+            harness.implementations = {"test-impl": impl}
+            harness.resource_manager = ResourceManager()
+            harness.git_manager = GitManager()
+            harness.test_runner = None  # Will be initialized lazily
             # Don't pass version, let it be detected from SWHID
             result = harness._run_single_test(impl, f.name, "test_file", category="content")
             

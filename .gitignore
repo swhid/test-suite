@@ -106,3 +106,4 @@ payloads/git/*/.git/
 # Commit squashing scripts (local tools, not tracked)
 auto-squash-commits.sh
 AUTO_SQUASH_README.md
+REFACTORING_JOURNAL.md

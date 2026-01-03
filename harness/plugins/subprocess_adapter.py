@@ -19,6 +19,7 @@ from typing import Optional, Dict, Any, List
 import logging
 
 from .base import SwhidImplementation, ImplementationInfo, ImplementationCapabilities, SwhidTestResult, TestMetrics
+from ..utils.subprocess_utils import prepare_subprocess_environment, set_resource_limits, run_with_timeout
 
 logger = logging.getLogger(__name__)
 
@@ -249,73 +250,18 @@ class SubprocessAdapter(SwhidImplementation):
     
     def _prepare_environment(self) -> Dict[str, str]:
         """Prepare clean environment for subprocess."""
-        if not self.clean_env:
-            env = os.environ.copy()
-            # Ensure project root is in PYTHONPATH
-            project_root = str(Path(__file__).parent.parent.parent.absolute())
-            if "PYTHONPATH" in env:
-                env["PYTHONPATH"] = f"{project_root}:{env['PYTHONPATH']}"
-            else:
-                env["PYTHONPATH"] = project_root
-            return env
-        
-        # Whitelist essential environment variables
-        env = {}
-        
-        # Essential paths
-        path = os.environ.get("PATH", "/usr/bin:/bin")
-        env["PATH"] = path
-        
-        # Home directory
-        home = os.environ.get("HOME", "/tmp")
-        env["HOME"] = home
-        
-        # Python path - include project root for module imports
-        project_root = str(Path(__file__).parent.parent.parent.absolute())
-        if "PYTHONPATH" in os.environ:
-            env["PYTHONPATH"] = f"{project_root}:{os.environ['PYTHONPATH']}"
-        else:
-            env["PYTHONPATH"] = project_root
-        
-        # Locale
-        for var in ["LANG", "LC_ALL", "LC_CTYPE"]:
-            if var in os.environ:
-                env[var] = os.environ[var]
-        
-        return env
+        return prepare_subprocess_environment(
+            clean_env=self.clean_env,
+            project_root=str(Path(__file__).parent.parent.parent.absolute())
+        )
     
     def _set_resource_limits(self):
         """Set resource limits for subprocess (Unix only)."""
-        try:
-            # Set RSS limit (virtual memory as proxy)
-            max_rss_bytes = self.max_rss_mb * 1024 * 1024
-            resource.setrlimit(resource.RLIMIT_AS, (max_rss_bytes, max_rss_bytes))
-            
-            # Set CPU time limit
-            max_cpu_seconds = self.max_cpu_time
-            resource.setrlimit(resource.RLIMIT_CPU, (max_cpu_seconds, max_cpu_seconds))
-        except (ValueError, OSError) as e:
-            logger.warning(f"Could not set resource limits: {e}")
+        set_resource_limits(self.max_rss_mb, self.max_cpu_time)
     
     def _run_with_timeout(self, func, timeout: float):
         """Run a function with timeout using signal (Unix only)."""
-        if os.name == 'nt':
-            # Windows doesn't support SIGALRM
-            return func()
-        
-        def timeout_handler(signum, frame):
-            raise TimeoutError(f"Operation timed out after {timeout}s")
-        
-        # Set up signal handler
-        old_handler = signal.signal(signal.SIGALRM, timeout_handler)
-        signal.alarm(int(timeout))
-        
-        try:
-            result = func()
-            return result
-        finally:
-            signal.alarm(0)
-            signal.signal(signal.SIGALRM, old_handler)
+        return run_with_timeout(func, timeout)
     
     def detect_object_type(self, payload_path: str) -> str:
         """Delegate to wrapped implementation."""
@@ -483,44 +429,15 @@ class JSONProtocolAdapter(SwhidImplementation):
     
     def _prepare_environment(self) -> Dict[str, str]:
         """Prepare clean environment for subprocess."""
-        if not self.clean_env:
-            env = os.environ.copy()
-            # Ensure project root is in PYTHONPATH
-            project_root = str(Path(__file__).parent.parent.parent.absolute())
-            if "PYTHONPATH" in env:
-                env["PYTHONPATH"] = f"{project_root}:{env['PYTHONPATH']}"
-            else:
-                env["PYTHONPATH"] = project_root
-            return env
-        
-        # Whitelist essential environment variables
-        env = {}
-        env["PATH"] = os.environ.get("PATH", "/usr/bin:/bin")
-        env["HOME"] = os.environ.get("HOME", "/tmp")
-        
-        # Python path - include project root for module imports
-        project_root = str(Path(__file__).parent.parent.parent.absolute())
-        if "PYTHONPATH" in os.environ:
-            env["PYTHONPATH"] = f"{project_root}:{os.environ['PYTHONPATH']}"
-        else:
-            env["PYTHONPATH"] = project_root
-        
-        for var in ["LANG", "LC_ALL", "LC_CTYPE"]:
-            if var in os.environ:
-                env[var] = os.environ[var]
-        
-        return env
+        return prepare_subprocess_environment(
+            clean_env=self.clean_env,
+            project_root=str(Path(__file__).parent.parent.parent.absolute())
+        )
     
     def _set_resource_limits(self):
         """Set resource limits for subprocess (Unix only)."""
-        try:
-            max_rss_bytes = self.max_rss_mb * 1024 * 1024
-            resource.setrlimit(resource.RLIMIT_AS, (max_rss_bytes, max_rss_bytes))
-            
-            max_cpu_seconds = self.max_cpu_time if hasattr(self, 'max_cpu_time') else 60
-            resource.setrlimit(resource.RLIMIT_CPU, (max_cpu_seconds, max_cpu_seconds))
-        except (ValueError, OSError) as e:
-            logger.warning(f"Could not set resource limits: {e}")
+        max_cpu_time = self.max_cpu_time if hasattr(self, 'max_cpu_time') else 60
+        set_resource_limits(self.max_rss_mb, max_cpu_time)
     
     def detect_object_type(self, payload_path: str) -> str:
         """Detect object type (default implementation)."""
