@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Optional
 
 from harness.plugins.base import SwhidImplementation, ImplementationInfo, ImplementationCapabilities
+from harness.exceptions import ImplementationError, TestExecutionError, IOError as HarnessIOError
 
 try:
     from swh.model.model import (
@@ -122,33 +123,58 @@ class Implementation(SwhidImplementation):
             )
             
             if result.returncode != 0:
-                raise RuntimeError(f"Python implementation failed: {result.stderr}")
+                raise ImplementationError(
+                    f"Python implementation failed: {result.stderr}",
+                    implementation="python"
+                )
             
             # Parse the output
             output = result.stdout.strip()
             if not output:
-                raise RuntimeError("No output from Python implementation")
+                raise ImplementationError(
+                    "No output from Python implementation",
+                    implementation="python"
+                )
             
             # The output format is: SWHID\tfilename (optional)
             # We want just the SWHID part
             swhid = output.split('\t')[0].strip()
             
             if not swhid.startswith("swh:"):
-                raise RuntimeError(f"Invalid SWHID format: {swhid}")
+                raise ImplementationError(
+                    f"Invalid SWHID format: {swhid}",
+                    implementation="python",
+                    error_code=None,  # Will be classified by harness
+                    subtype="parse_error"
+                )
             
             return swhid
             
         except subprocess.TimeoutExpired:
-            raise RuntimeError("Python implementation timed out")
+            from harness.exceptions import TimeoutError
+            raise TimeoutError(
+                "Python implementation timed out",
+                timeout_seconds=None
+            )
         except FileNotFoundError:
-            raise RuntimeError("Python implementation not found (swh.model not available)")
+            raise ImplementationError(
+                "Python implementation not found (swh.model not available)",
+                implementation="python"
+            )
         except Exception as e:
-            raise RuntimeError(f"Error running Python implementation: {e}")
+            raise ImplementationError(
+                f"Error running Python implementation: {e}",
+                implementation="python",
+                context={"original_error": str(e)}
+            )
     
     def _compute_revision_swhid(self, repo_path: str, commit: Optional[str] = None) -> str:
         """Compute revision SWHID using swh.model Python API."""
         if not SWH_MODEL_AVAILABLE:
-            raise RuntimeError("swh.model Python API not available")
+            raise ImplementationError(
+                "swh.model Python API not available",
+                implementation="python"
+            )
         
         # Default to HEAD if no commit specified
         if commit is None:
@@ -229,7 +255,13 @@ class Implementation(SwhidImplementation):
                     gpgsig_bytes = b'\n'.join(processed_lines)
         
         if not tree_sha:
-            raise ValueError(f"Could not parse tree from commit {commit_sha}")
+            raise TestExecutionError(
+                f"Could not parse tree from commit {commit_sha}",
+                payload_name=None,
+                payload_path=None,
+                error_code=None,
+                subtype="parse_error"
+            )
         
         # Parse author/committer (format: "Name <email> timestamp offset")
         def parse_person(line):
@@ -250,7 +282,13 @@ class Implementation(SwhidImplementation):
         committer, committer_ts, committer_offset = parse_person(committer_line) if committer_line else (None, None, None)
         
         if not author or not committer:
-            raise ValueError(f"Could not parse author/committer from commit {commit_sha}")
+            raise TestExecutionError(
+                f"Could not parse author/committer from commit {commit_sha}",
+                payload_name=None,
+                payload_path=None,
+                error_code=None,
+                subtype="parse_error"
+            )
         
         # Get message (everything after blank line)
         message = '\n'.join(lines[message_start:]).encode('utf-8') if message_start else b''
@@ -310,10 +348,19 @@ class Implementation(SwhidImplementation):
     def _compute_release_swhid(self, repo_path: str, tag: Optional[str] = None) -> str:
         """Compute release SWHID using swh.model Python API."""
         if not SWH_MODEL_AVAILABLE:
-            raise RuntimeError("swh.model Python API not available")
+            raise ImplementationError(
+                "swh.model Python API not available",
+                implementation="python"
+            )
         
         if tag is None:
-            raise ValueError("Tag name is required for release SWHID computation")
+            raise TestExecutionError(
+                "Tag name is required for release SWHID computation",
+                payload_name=None,
+                payload_path=None,
+                error_code=None,
+                subtype="validation_error"
+            )
         
         # Check if it's an annotated tag
         result = subprocess.run(
@@ -328,7 +375,13 @@ class Implementation(SwhidImplementation):
         tag_type = result.stdout.strip()
         
         if tag_type != "tag":
-            raise ValueError(f"Tag '{tag}' is a lightweight tag, not an annotated tag. Releases require annotated tags.")
+            raise TestExecutionError(
+                f"Tag '{tag}' is a lightweight tag, not an annotated tag. Releases require annotated tags.",
+                payload_name=None,
+                payload_path=None,
+                error_code=None,
+                subtype="validation_error"
+            )
         
         # Get tag object
         tag_result = subprocess.run(
@@ -363,7 +416,13 @@ class Implementation(SwhidImplementation):
                 break
         
         if not object_sha:
-            raise ValueError(f"Could not parse tag object for tag '{tag}': missing object field")
+            raise TestExecutionError(
+                f"Could not parse tag object for tag '{tag}': missing object field",
+                payload_name=None,
+                payload_path=None,
+                error_code=None,
+                subtype="parse_error"
+            )
         
         if not tag_name:
             tag_name = tag
@@ -394,9 +453,21 @@ class Implementation(SwhidImplementation):
             if inner_object_type == 'commit' and inner_object_sha:
                 target_commit_sha = inner_object_sha
             else:
-                raise ValueError(f"Tag '{tag}' points to a tag that doesn't point to a commit")
+                raise TestExecutionError(
+                    f"Tag '{tag}' points to a tag that doesn't point to a commit",
+                    payload_name=None,
+                    payload_path=None,
+                    error_code=None,
+                    subtype="validation_error"
+                )
         elif object_type != 'commit':
-            raise ValueError(f"Tag '{tag}' points to a {object_type}, not a commit. Releases require tags pointing to commits.")
+            raise TestExecutionError(
+                f"Tag '{tag}' points to a {object_type}, not a commit. Releases require tags pointing to commits.",
+                payload_name=None,
+                payload_path=None,
+                error_code=None,
+                subtype="validation_error"
+            )
         
         # Get revision SWHID for target commit (recursive call)
         # Use target_commit_sha which may have been resolved from nested tags
