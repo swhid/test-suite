@@ -39,24 +39,33 @@ However, Git does not have a native concept of snapshots (`snp`), which are Soft
 
 ### Python Implementation
 
-**35 skips** (55.7% pass rate: 44/79 tests) - Revision and release objects are not supported by the Python `swh.model.cli` implementation.
+**3 skips** (96.2% pass rate: 76/79 tests) - Full support for all object types using the `swh.model` Python API, except signed tags.
 
-The Python implementation via `swh.model.cli` supports:
-- Content objects (`cnt`)
-- Directory objects (`dir`)
-- Snapshot objects (`snp`)
+The Python implementation supports:
+- Content objects (`cnt`) - via `swh.model.cli`
+- Directory objects (`dir`) - via `swh.model.cli`
+- Revision objects (`rev`) - via `swh.model` Python API (direct model object creation)
+  - **Signed commits (GPG)**: Fully supported via `extra_headers` in `Revision` objects
+- Release objects (`rel`) - via `swh.model` Python API (direct model object creation)
+  - **Signed tags (GPG)**: **Not supported** (3 tests skipped)
+  - **Unsigned tags**: Fully supported
+- Snapshot objects (`snp`) - via `swh.model.cli`
 
-However, it does not support:
-- Revision objects (`rev`)
-- Release objects (`rel`)
+**Implementation details:**
+- Content, directory, and snapshot objects are computed using the `swh.model.cli` command-line interface
+- Revision and release objects are computed using the `swh.model` Python API directly, since the CLI does not expose these as separate `--type` options
+- The implementation parses Git commit and tag objects, creates `swh.model.model.Revision` and `swh.model.model.Release` objects, and uses `swh.model.git_objects.revision_git_object()` and `release_git_object()` to format them for hashing
+- For signed commits, GPG signatures are extracted and passed via `extra_headers` to `Revision` objects
+- For signed tags, tests are skipped because `swh.model`'s `Release` object doesn't properly handle GPG signatures in tag messages
 
-**Affected tests:**
-- All revision tests (e.g., `simple_revision`, `simple_revisions_head`, `merge_revision`)
-- All release tests (e.g., `annotated_release_v1`, `signed_release_v1`, `comprehensive_tag_v1.0.0`)
+**Current status**: 96.2% pass rate (76/79 pass, 3 skip) on Ubuntu and macOS. Not available on Windows.
 
-**Current status**: 55.7% pass rate (44/79 pass, 35 skip) on Ubuntu and macOS. Not available on Windows.
+**Affected tests (3 skips):**
+- `signed_release_v1`: Signed tag v1.0.0
+- `signed_release_v2`: Signed tag v2.0.0
+- `signed_release_v2_1`: Signed tag v2.1.0
 
-See `implementations/python/implementation.py` lines 69-72 for the implementation.
+**Note**: Signed tags pointing to other tags (nested tags) are fully supported for unsigned tags. Signed tags are skipped to ensure we're testing `swh.model` rather than using fallback methods.
 
 ### Rust Implementation
 

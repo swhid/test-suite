@@ -61,6 +61,8 @@ cat results.json | python3 -m json.tool | less
 
 ## Adding a New Implementation
 
+**Before adding a new implementation**, see the [Implementation Guide](IMPLEMENTATIONS.md) for details on existing implementations, their technology stacks, and design patterns.
+
 ### Step 1: Create Directory Structure
 
 ```bash
@@ -536,8 +538,9 @@ passed to the `swhid` binary. Other implementations will be extended as needed.
 
 ## Getting Help
 
+- See the [Implementation Guide](IMPLEMENTATIONS.md) for comprehensive details on all implementations
 - Check existing implementations in `implementations/` for examples
-- See `implementations/example/` for a complete example
+- See existing implementations in `implementations/` (e.g., `implementations/python/implementation.py`) for complete examples
 - Review error messages in test results JSON
 - Check `config.yaml` for payload configuration
 
