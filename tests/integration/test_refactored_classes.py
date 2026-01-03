@@ -297,17 +297,26 @@ settings:
         assert harness.resource_manager is not None
         assert harness.git_manager is not None
         assert harness.comparator is not None
-        assert harness.output_generator is not None
-        assert harness.runner is not None
+        # output_generator and test_runner are initialized lazily when implementations are loaded
+        # They start as None and are set when needed
+        assert hasattr(harness, 'output_generator')
+        assert hasattr(harness, 'test_runner')
+        # Verify they are None initially (lazy initialization)
+        assert harness.output_generator is None
+        assert harness.test_runner is None
     
     def test_harness_list_implementations(self, tmp_path):
         """Test listing implementations."""
         config_path = tmp_path / "config.yaml"
+        # Config needs at least one payload category
         config_path.write_text("""
 schema_version: "1.0.0"
 output:
   results_dir: "results"
-payloads: {}
+payloads:
+  content:
+    - name: test
+      path: "test"
 settings:
   timeout: 30
   parallel_tests: 1
