@@ -523,7 +523,7 @@ jobs:
           echo "${{ runner.temp }}/gem-home/bin" >> "$GITHUB_PATH"
 
       - name: Cache GEM_HOME
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ${{ runner.temp }}/gem-home
           # If there is a Gemfile.lock, incorporate it; otherwise keep a stable key
