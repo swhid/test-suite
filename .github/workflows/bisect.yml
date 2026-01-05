@@ -33,7 +33,7 @@ jobs:
       # Full history checkout (MANDATORY for bisect)
       # ------------------------------------------------------------
       - name: Checkout repository (full history)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
