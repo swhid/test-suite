@@ -411,7 +411,7 @@ jobs:
       
       - name: Upload current state for next run
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: upstream-state
           path: current-state
@@ -717,7 +717,7 @@ jobs:
       
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: results-${{ matrix.os }}-py${{ env.PYTHON_VERSION }}
           path: |
