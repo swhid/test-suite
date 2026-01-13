@@ -1,6 +1,6 @@
 # SWHID Testing Harness
 
-A technology-neutral testing harness for comparing different SWHID (Software Heritage Identifier) implementations on standardized test payloads.
+A technology-neutral testing harness for comparing different SWHID (SoftWare Hash Identifier) implementations on standardized test payloads.
 
 ## Quick Start
 
