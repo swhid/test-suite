@@ -879,7 +879,7 @@ jobs:
       
       - name: Upload Pages artifact
         if: steps.pages-check.outputs.enabled == 'true'
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v4
         with:
           path: site
         continue-on-error: true
