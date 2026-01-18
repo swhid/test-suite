@@ -108,6 +108,10 @@ payloads:
     name: entry_ordering
     path: payloads/directory/edge_cases/entry_ordering/
     expected_swhid_sha256: swh:2:dir:82adc728758d57594b716d575e10758aa94a0a282a05c03006e1a33a45f85615
+  - description: Directory with entries of files and subdir (tests ordering of subdir)
+    expected_swhid: swh:1:dir:8a75e785dc497ca2fd150e8f32e13656eb3b6f88
+    name: dir_ordering
+    path: payloads/directory/edge_cases/dir_ordering/
   - description: Directory with special characters in filenames (spaces, semicolons,
       percent signs)
     expected_swhid: swh:1:dir:09b68fff5b158f616bd76d5e82836dafc6b96aaf
