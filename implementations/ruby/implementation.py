@@ -16,6 +16,60 @@ from harness.utils.permissions import get_source_permissions, create_git_repo_wi
 
 logger = logging.getLogger(__name__)
 
+
+def _parse_bat_wrapper(bat_path: str) -> Optional[list]:
+    """Parse a Windows .bat wrapper to extract Ruby invocation command.
+
+    On Windows, RubyGems creates .bat wrappers that look like:
+        @ECHO OFF
+        @"C:\\Ruby\\bin\\ruby.exe" "C:\\path\\to\\script" %*
+
+    When binary data is piped through a .bat file, CMD.EXE can corrupt it
+    (e.g., CRLF conversion, Ctrl+Z as EOF). This function extracts the
+    underlying Ruby command so we can invoke it directly.
+
+    Args:
+        bat_path: Path to the .bat file
+
+    Returns:
+        List of command parts [ruby_exe, script_path] or None if parsing fails
+    """
+    try:
+        with open(bat_path, 'r', encoding='utf-8', errors='replace') as f:
+            content = f.read()
+
+        # Look for the Ruby invocation line
+        # Pattern: @"path/to/ruby.exe" "path/to/script" %*
+        # or: @path/to/ruby.exe path/to/script %*
+        import re
+
+        # Try quoted paths first
+        match = re.search(r'@"([^"]+ruby[^"]*\.exe)"\s+"([^"]+)"', content, re.IGNORECASE)
+        if match:
+            ruby_exe = match.group(1)
+            script_path = match.group(2)
+            # Verify files exist
+            if os.path.isfile(ruby_exe) and os.path.isfile(script_path):
+                logger.debug(f"Parsed .bat wrapper: ruby={ruby_exe}, script={script_path}")
+                return [ruby_exe, script_path]
+
+        # Try unquoted paths
+        match = re.search(r'@(\S+ruby\S*\.exe)\s+(\S+)', content, re.IGNORECASE)
+        if match:
+            ruby_exe = match.group(1).strip('"')
+            script_path = match.group(2).strip('"').rstrip('%*').strip()
+            if os.path.isfile(ruby_exe) and os.path.isfile(script_path):
+                logger.debug(f"Parsed .bat wrapper (unquoted): ruby={ruby_exe}, script={script_path}")
+                return [ruby_exe, script_path]
+
+        logger.debug(f"Could not parse .bat wrapper: {bat_path}")
+        return None
+
+    except Exception as e:
+        logger.debug(f"Error reading .bat wrapper {bat_path}: {e}")
+        return None
+
+
 class Implementation(SwhidImplementation):
     """Ruby SWHID implementation plugin."""
     
@@ -314,9 +368,21 @@ class Implementation(SwhidImplementation):
         swhid_path = self._find_swhid_path()
         if not swhid_path:
             raise RuntimeError("Ruby implementation not found (swhid gem not installed)")
-        
+
         # Build the command
-        cmd = [swhid_path]
+        # On Windows, if using a .bat wrapper, parse it and invoke Ruby directly
+        # This avoids CMD.EXE corrupting binary data piped through stdin
+        is_windows = platform.system() == 'Windows'
+        if is_windows and swhid_path.endswith(('.bat', '.cmd')):
+            parsed = _parse_bat_wrapper(swhid_path)
+            if parsed:
+                cmd = parsed  # [ruby_exe, script_path]
+                logger.debug(f"Using direct Ruby invocation: {cmd}")
+            else:
+                cmd = [swhid_path]
+                logger.warning("Could not parse .bat wrapper, using .bat directly (may have binary issues)")
+        else:
+            cmd = [swhid_path]
 
         # Map object types to swhid CLI commands
         if obj_type == "content" or obj_type == "cnt":
