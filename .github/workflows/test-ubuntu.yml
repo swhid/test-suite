@@ -144,7 +144,7 @@ jobs:
       - name: Run full test suite
         shell: bash
         run: |
-          swhid-harness --output-format canonical --dashboard-output results.json || true
+          swhid-harness --log-level debug --output-format canonical --dashboard-output results.json || true
 
       - name: Generate HTML results table
         if: always()
