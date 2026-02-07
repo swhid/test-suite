@@ -40,8 +40,6 @@ from .comparator import ResultComparator
 from .output import OutputGenerator
 from .runner import TestRunner
 
-# Configure logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 class SwhidHarness:
@@ -1174,6 +1172,8 @@ def main():
     parser.add_argument("--dashboard-output", help="Save dashboard results to file")
     parser.add_argument("--branch", default="main", help="Git branch name")
     parser.add_argument("--commit", default="unknown", help="Git commit hash")
+    parser.add_argument("--log-level", default='info',
+                        help="Provide logging level. Example --loglevel debug, default=warning")
     
     # New CLI options (P1)
     parser.add_argument("--list-impls", action="store_true",
@@ -1197,6 +1197,8 @@ def main():
                        help="Run both v1 and v2 tests when both expected values are present")
     
     args = parser.parse_args()
+
+    logging.basicConfig(level=args.log_level.upper(), format='%(asctime)s - %(levelname)s - %(message)s')
     
     harness = SwhidHarness(args.config)
     
