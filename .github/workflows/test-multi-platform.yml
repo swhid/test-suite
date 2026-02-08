@@ -553,11 +553,11 @@ jobs:
         uses: actions/cache@v5
         with:
           path: ${{ runner.temp }}/gem-home
-          # Use full Ruby version (e.g. 3.2.10) so native extensions (rugged) built for 3.2.9 are not restored on 3.2.10
+          # Use full Ruby version (e.g. 3.2.10) so native extensions (rugged) built for 3.2.9 are not restored on 3.2.10.
+          # Do not use a restore-key broader than ruby-${{ env.RUBY_FULL_VERSION }} or we may restore an old 3.2.9 cache.
           key: gemhome-${{ runner.os }}-ruby-${{ env.RUBY_FULL_VERSION }}-${{ hashFiles('**/Gemfile.lock') }}
           restore-keys: |
             gemhome-${{ runner.os }}-ruby-${{ env.RUBY_FULL_VERSION }}-
-            gemhome-${{ runner.os }}-
 
       - name: Determine CPU cores
         id: cpu-cores
