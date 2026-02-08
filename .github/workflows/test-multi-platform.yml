@@ -441,6 +441,7 @@ jobs:
       SWHID_RS_FEATURES: git
       RUBY_VERSION: "3.2"
       PYTHON_VERSION: "3.12"
+      GO_VERSION: "1.22"
 
     steps:
       - name: Checkout test-suite
@@ -514,7 +515,16 @@ jobs:
         with:
           ruby-version: ${{ env.RUBY_VERSION }}
           bundler-cache: false
-        continue-on-error: true
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: Install swhid-go
+        shell: bash
+        run: go install github.com/andrew/swhid-go/cmd/swhid@latest
 
       # --------------------------------------------------------------------
       # Ruby gem caching: use a deterministic GEM_HOME we control
