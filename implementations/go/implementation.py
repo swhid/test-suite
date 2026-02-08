@@ -18,6 +18,30 @@ from harness.utils.permissions import get_source_permissions, create_git_repo_wi
 logger = logging.getLogger(__name__)
 
 
+def _normalize_go_swhid_output(raw: str) -> str:
+    """Normalize Go CLI stdout: strip leading 'SWHID:' prefix and optional multi-line.
+
+    The Go swhid CLI may print e.g. 'SWHID: swh:1:rev:...' or multi-line output.
+    Returns a single line starting with 'swh:' for harness validation.
+    """
+    text = raw.strip()
+    if not text:
+        return text
+    # Strip leading "SWHID:" (case-insensitive) and following whitespace
+    if text.upper().startswith("SWHID:"):
+        text = text[6:].lstrip()
+    # If multi-line, take the first line that starts with swh:
+    if "\n" in text:
+        for line in text.splitlines():
+            line = line.strip()
+            if line.upper().startswith("SWHID:"):
+                line = line[6:].lstrip()
+            if line.startswith("swh:"):
+                return line
+        return text.splitlines()[0].strip()
+    return text
+
+
 class Implementation(SwhidImplementation):
     """Go SWHID implementation plugin."""
 
@@ -230,6 +254,7 @@ class Implementation(SwhidImplementation):
                     raise RuntimeError(f"Go implementation failed: {stderr}")
 
                 output = result.stdout.decode('utf-8', errors='replace').strip()
+                output = _normalize_go_swhid_output(output)
                 if not output:
                     raise RuntimeError("No output from Go implementation")
 
@@ -266,6 +291,7 @@ class Implementation(SwhidImplementation):
                     raise RuntimeError(f"Go implementation failed: {result.stderr}")
 
                 output = result.stdout.strip()
+                output = _normalize_go_swhid_output(output)
                 if not output:
                     raise RuntimeError("No output from Go implementation")
 
