@@ -87,17 +87,17 @@ jobs:
                 }
               }
               
-              if (!workflowRuns || !workflowRuns.data.workflow_runs || workflowRuns.data.workflow_runs.length < 2) {
-                console.log('No previous successful run found (need at least 2 runs)');
+              if (!workflowRuns || !workflowRuns.data.workflow_runs || workflowRuns.data.workflow_runs.length < 1) {
+                console.log('No previous successful run found (need at least 1 run with upstream-state artifact)');
                 if (workflowRuns && workflowRuns.data.workflow_runs) {
-                  console.log(`Found ${workflowRuns.data.workflow_runs.length} run(s), but need 2+ for comparison`);
+                  console.log(`Found ${workflowRuns.data.workflow_runs.length} run(s)`);
                 }
                 core.setOutput('artifact_id', '');
                 return;
               }
               
-              const previousRun = workflowRuns.data.workflow_runs[1];
-              console.log(`Found previous run: ${previousRun.id} (created: ${previousRun.created_at})`);
+              const previousRun = workflowRuns.data.workflow_runs[0];
+              console.log(`Found most recent successful run: ${previousRun.id} (created: ${previousRun.created_at})`);
               
               const artifacts = await github.rest.actions.listWorkflowRunArtifacts({
                 owner: context.repo.owner,
