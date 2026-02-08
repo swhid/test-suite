@@ -80,6 +80,34 @@ def _is_under_gem_home(path: str) -> bool:
     return norm_path == norm_gem or norm_path.startswith(norm_gem + os.sep)
 
 
+def _path_candidate_is_ruby_gem(swhid_path: str, is_windows: bool) -> bool:
+    """Return True if the swhid at swhid_path is the Ruby gem (accepts long subcommand 'directory').
+
+    Rust swhid-rs uses short subcommands (dir, rev, rel, snp) and prints
+    "unrecognized subcommand 'directory'" when given 'directory'. The Ruby gem uses long names.
+    """
+    try:
+        cmd = [swhid_path, "directory", "--help"]
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=5,
+        )
+        out = (result.stdout or "") + (result.stderr or "")
+        if "unrecognized subcommand 'directory'" in out or "a similar subcommand exists: 'dir'" in out:
+            logger.debug(f"Ruby: PATH candidate rejected (Rust binary): {swhid_path}")
+            return False
+        # Success or other output (e.g. Ruby gem help) means it's the Ruby gem
+        logger.debug(f"Ruby: PATH candidate accepted as Ruby gem: {swhid_path}")
+        return True
+    except Exception as e:
+        logger.debug(f"Ruby: PATH candidate check failed for {swhid_path}: {e}")
+        return False
+
+
 class Implementation(SwhidImplementation):
     """Ruby SWHID implementation plugin."""
     
@@ -93,8 +121,9 @@ class Implementation(SwhidImplementation):
     def _find_swhid_path(self) -> Optional[str]:
         """Find the swhid command path and cache it.
         
-        Prefers Ruby gem's swhid over Rust binary by checking gem-specific
-        paths first, then falling back to PATH search.
+        Uses package-manager (RubyGems) path first: Gem.bin_path('swhid', 'swhid').
+        Then checks GEM_HOME/bin, Gem.user_dir/bin, standard gem globs; PATH last
+        with verification so we never pick the Rust binary.
         """
         if self._swhid_path:
             logger.debug(f"Ruby: Using cached swhid path: {self._swhid_path}")
@@ -108,8 +137,33 @@ class Implementation(SwhidImplementation):
         is_windows = platform.system() == "Windows"
         logger.debug(f"Ruby: Platform is Windows: {is_windows}")
         
-        # CRITICAL: Check gem-specific paths FIRST to prefer Ruby gem over Rust binary
-        # The Rust binary may be in PATH and come first, but we need the Ruby gem
+        # Primary: ask RubyGems for the canonical path to the swhid gem's executable
+        try:
+            gem_bin_result = subprocess.run(
+                ["ruby", "-e", "puts Gem.bin_path('swhid', 'swhid')"],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=5,
+            )
+            if gem_bin_result.returncode == 0:
+                path_str = (gem_bin_result.stdout or "").strip()
+                if path_str and os.path.isfile(path_str):
+                    path_norm = os.path.normpath(path_str)
+                    if is_windows:
+                        bat_path = path_norm + ".bat"
+                        if os.path.isfile(bat_path):
+                            logger.info(f"Ruby: Found swhid via Gem.bin_path (using .bat): {bat_path}")
+                            self._swhid_path = bat_path
+                            return bat_path
+                    logger.info(f"Ruby: Found swhid via Gem.bin_path: {path_norm}")
+                    self._swhid_path = path_norm
+                    return path_norm
+        except Exception as e:
+            logger.debug(f"Ruby: Gem.bin_path lookup failed: {e}")
+        
+        # Fallbacks: gem-specific paths (GEM_HOME, Gem.user_dir, globs)
         home = os.path.expanduser("~")
         gem_paths = [
             os.path.join(home, ".gem", "ruby", "*", "bin", "swhid"),
@@ -255,11 +309,25 @@ class Implementation(SwhidImplementation):
                 else:
                     logger.debug(f"Ruby: File does not exist: {swhid_cmd}")
         
-        # Do NOT fall back to PATH: on CI (e.g. macOS) PATH may contain the Rust swhid-rs
-        # binary first, which uses short subcommands (dir, rev, rel, snp). Using it for the
-        # Ruby implementation would cause "unrecognized subcommand 'directory'" etc.
-        # Only the Ruby gem (from GEM_HOME or gem paths above) uses long names and is valid.
-        logger.debug("Ruby: No gem swhid found in GEM_HOME or gem paths; not checking PATH (would risk using Rust binary)")
+        # Fallback: PATH (e.g. macOS when GEM_HOME/bin is empty but gem is in Gem.user_dir).
+        # Only accept a PATH candidate if it is the Ruby gem (accepts long subcommand "directory");
+        # Rust binary uses short names and would say "unrecognized subcommand 'directory'".
+        logger.debug("Ruby: Checking PATH for swhid (will accept only if Ruby gem, not Rust)")
+        if is_windows:
+            for ext in ["", ".bat", ".cmd"]:
+                swhid_name = "swhid" + ext
+                swhid_path = shutil.which(swhid_name)
+                if swhid_path and _path_candidate_is_ruby_gem(swhid_path, is_windows):
+                    logger.info(f"Ruby: Found Ruby gem swhid in PATH: {swhid_path}")
+                    self._swhid_path = swhid_path
+                    return swhid_path
+        else:
+            swhid_path = shutil.which("swhid")
+            if swhid_path and _path_candidate_is_ruby_gem(swhid_path, is_windows):
+                logger.info(f"Ruby: Found Ruby gem swhid in PATH: {swhid_path}")
+                self._swhid_path = swhid_path
+                return swhid_path
+        
         logger.warning("Ruby: Could not find swhid binary in any location")
         return None
 
