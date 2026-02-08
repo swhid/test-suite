@@ -70,6 +70,16 @@ def _parse_bat_wrapper(bat_path: str) -> Optional[list]:
         return None
 
 
+def _is_under_gem_home(path: str) -> bool:
+    """Return True if path is under GEM_HOME (avoids shebang issues with cached gem bin)."""
+    gem_home = os.environ.get("GEM_HOME")
+    if not gem_home:
+        return False
+    norm_path = os.path.normpath(os.path.abspath(path))
+    norm_gem = os.path.normpath(os.path.abspath(gem_home))
+    return norm_path == norm_gem or norm_path.startswith(norm_gem + os.sep)
+
+
 class Implementation(SwhidImplementation):
     """Ruby SWHID implementation plugin."""
     
@@ -213,9 +223,13 @@ class Implementation(SwhidImplementation):
                             self._swhid_path = swhid_cmd
                             return swhid_cmd
                         
+                        # Invoke via ruby when under GEM_HOME to avoid shebang issues (cached CI)
+                        verify_cmd = [swhid_cmd, "snapshot", "--help"]
+                        if _is_under_gem_home(swhid_cmd):
+                            verify_cmd = ["ruby", swhid_cmd, "snapshot", "--help"]
                         try:
                             result = subprocess.run(
-                                [swhid_cmd, "snapshot", "--help"],
+                                verify_cmd,
                                 capture_output=True,
                                 text=True,
                                 timeout=2
@@ -251,10 +265,12 @@ class Implementation(SwhidImplementation):
                 swhid_path = shutil.which(swhid_name)
                 if swhid_path:
                     logger.debug(f"Ruby: Found {swhid_name} in PATH: {swhid_path}")
-                    # Verify it supports snapshot (Ruby gem) vs not (Rust binary)
+                    path_verify = [swhid_path, "snapshot", "--help"]
+                    if _is_under_gem_home(swhid_path) and not swhid_path.endswith(('.bat', '.cmd')):
+                        path_verify = ["ruby", swhid_path, "snapshot", "--help"]
                     try:
                         result = subprocess.run(
-                            [swhid_path, "snapshot", "--help"],
+                            path_verify,
                             capture_output=True,
                             text=True,
                             timeout=2
@@ -272,10 +288,12 @@ class Implementation(SwhidImplementation):
             swhid_path = shutil.which("swhid")
             if swhid_path:
                 logger.debug(f"Ruby: Found swhid in PATH: {swhid_path}")
-                # Verify it supports snapshot (Ruby gem) vs not (Rust binary)
+                path_verify = [swhid_path, "snapshot", "--help"]
+                if _is_under_gem_home(swhid_path):
+                    path_verify = ["ruby", swhid_path, "snapshot", "--help"]
                 try:
                     result = subprocess.run(
-                        [swhid_path, "snapshot", "--help"],
+                        path_verify,
                         capture_output=True,
                         text=True,
                         timeout=2
@@ -319,11 +337,15 @@ class Implementation(SwhidImplementation):
                 logger.debug(f"Ruby: Using .bat wrapper on Windows: {bat_path}")
                 swhid_path = bat_path
         
+        # Invoke via ruby when under GEM_HOME so we don't depend on shebang (cached CI)
+        test_cmd = [swhid_path, "help"]
+        if _is_under_gem_home(swhid_path) and not (is_windows and swhid_path.endswith(('.bat', '.cmd'))):
+            test_cmd = ["ruby", swhid_path, "help"]
         # Test that the command actually works
         try:
-            logger.debug(f"Ruby: Running test command: {swhid_path} help")
+            logger.debug(f"Ruby: Running test command: {test_cmd}")
             result = subprocess.run(
-                [swhid_path, "help"],
+                test_cmd,
                 capture_output=True,
                 text=True,
                 encoding='utf-8',
@@ -381,6 +403,10 @@ class Implementation(SwhidImplementation):
             else:
                 cmd = [swhid_path]
                 logger.warning("Could not parse .bat wrapper, using .bat directly (may have binary issues)")
+        elif _is_under_gem_home(swhid_path):
+            # Invoke via ruby when under GEM_HOME so we don't depend on shebang (cached CI)
+            cmd = ["ruby", swhid_path]
+            logger.debug(f"Using ruby invocation for GEM_HOME script: {cmd}")
         else:
             cmd = [swhid_path]
 
@@ -450,8 +476,10 @@ class Implementation(SwhidImplementation):
                 raise RuntimeError(f"Error running Ruby implementation: {e}")
 
         # For directory and git types, pass path as argument
-        elif cmd[1] in ["directory", "revision", "release", "snapshot"]:
-            if cmd[1] == "directory":
+        # Subcommand may be at index 1 ([path, subcommand]) or 2 ([ruby, path, subcommand])
+        subcommand = next((c for c in cmd if c in ["directory", "revision", "release", "snapshot"]), None)
+        if subcommand is not None:
+            if subcommand == "directory":
                 # On Windows, we need to preserve file permissions before calling the tool
                 # Create a temporary copy with correct permissions
                 payload_path = self._ensure_permissions_preserved(payload_path)
