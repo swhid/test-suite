@@ -52,66 +52,89 @@ class Implementation(SwhidImplementation):
         self._temp_dirs: list = []
         self._find_swhid_path()
 
+    def _get_go_bin_dirs(self) -> list:
+        """Return list of directories where go install puts binaries (GOBIN or GOPATH/bin)."""
+        try:
+            # Prefer go env for authoritative paths
+            gobin_result = subprocess.run(
+                ["go", "env", "GOBIN"],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=5,
+            )
+            gobin = (gobin_result.stdout or "").strip() if gobin_result.returncode == 0 else ""
+            if gobin:
+                return [gobin]
+
+            gopath_result = subprocess.run(
+                ["go", "env", "GOPATH"],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=5,
+            )
+            if gopath_result.returncode != 0 or not gopath_result.stdout:
+                gopath = os.environ.get("GOPATH", os.path.join(os.path.expanduser("~"), "go"))
+            else:
+                gopath = (gopath_result.stdout or "").strip()
+            # GOPATH can be a list (pathsep-separated, e.g. : on Unix, ; on Windows)
+            return [os.path.join(p.strip(), "bin") for p in gopath.split(os.pathsep) if p.strip()]
+        except Exception as e:
+            logger.debug(f"Go: go env failed: {e}, using process env")
+            gobin = os.environ.get("GOBIN")
+            gopath = os.environ.get("GOPATH", os.path.join(os.path.expanduser("~"), "go"))
+            if gobin:
+                return [gobin]
+            return [os.path.join(gopath, "bin")]
+
     def _find_swhid_path(self) -> Optional[str]:
-        """Find the swhid command path and cache it."""
+        """Find the swhid command path and cache it.
+
+        Uses package-manager (Go) paths only: SWHID_GO_PATH, then go env GOBIN/GOPATH
+        bin dirs. Does not use PATH so we never pick the Rust or Ruby binary.
+        """
         if self._swhid_path:
             return self._swhid_path
 
         logger.debug("Go: Starting swhid binary detection")
         is_windows = platform.system() == "Windows"
-
-        # Check SWHID_GO_PATH environment variable first
-        env_path = os.environ.get("SWHID_GO_PATH")
-        if env_path and os.path.isfile(env_path):
-            logger.info(f"Go: Found swhid via SWHID_GO_PATH: {env_path}")
-            self._swhid_path = env_path
-            return env_path
-
-        # Check GOPATH/bin and GOBIN
-        gobin = os.environ.get("GOBIN")
-        gopath = os.environ.get("GOPATH", os.path.join(os.path.expanduser("~"), "go"))
-
-        search_paths = []
-        if gobin:
-            search_paths.append(gobin)
-        search_paths.append(os.path.join(gopath, "bin"))
-
         binary_name = "swhid.exe" if is_windows else "swhid"
 
-        for search_path in search_paths:
+        # 1. Explicit override
+        env_path = os.environ.get("SWHID_GO_PATH")
+        if env_path and os.path.isfile(env_path):
+            if self._verify_go_implementation(env_path):
+                logger.info(f"Go: Found swhid via SWHID_GO_PATH: {env_path}")
+                self._swhid_path = env_path
+                return env_path
+
+        # 2. Go toolchain bin dirs (go env GOBIN / GOPATH)
+        for search_path in self._get_go_bin_dirs():
             candidate = os.path.join(search_path, binary_name)
-            if os.path.isfile(candidate):
-                # Verify it's the Go implementation by checking help output
-                if self._verify_go_implementation(candidate):
-                    logger.info(f"Go: Found swhid at: {candidate}")
-                    self._swhid_path = candidate
-                    return candidate
+            if os.path.isfile(candidate) and self._verify_go_implementation(candidate):
+                logger.info(f"Go: Found swhid at: {candidate}")
+                self._swhid_path = candidate
+                return candidate
 
-        # Try PATH lookup
-        swhid_path = shutil.which("swhid")
-        if swhid_path and self._verify_go_implementation(swhid_path):
-            logger.info(f"Go: Found swhid in PATH: {swhid_path}")
-            self._swhid_path = swhid_path
-            return swhid_path
-
-        # Try to build from source if go is available
-        go_path = shutil.which("go")
-        if go_path:
+        # 3. Build from source if go is available
+        if shutil.which("go"):
             try:
-                # Try installing from source
                 result = subprocess.run(
                     ["go", "install", "github.com/andrew/swhid-go/cmd/swhid@latest"],
                     capture_output=True,
                     text=True,
-                    timeout=120
+                    timeout=120,
                 )
                 if result.returncode == 0:
-                    # Check again in GOPATH/bin
-                    candidate = os.path.join(gopath, "bin", binary_name)
-                    if os.path.isfile(candidate):
-                        logger.info(f"Go: Installed and found swhid at: {candidate}")
-                        self._swhid_path = candidate
-                        return candidate
+                    for search_path in self._get_go_bin_dirs():
+                        candidate = os.path.join(search_path, binary_name)
+                        if os.path.isfile(candidate) and self._verify_go_implementation(candidate):
+                            logger.info(f"Go: Installed and found swhid at: {candidate}")
+                            self._swhid_path = candidate
+                            return candidate
             except Exception as e:
                 logger.debug(f"Go: Failed to install from source: {e}")
 
