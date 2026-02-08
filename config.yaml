@@ -163,7 +163,7 @@ payloads:
     path: payloads/git/snapshot_branch_order/
   - description: Git repo with dangling branches (branches pointing to non-existent
       commits)
-    expected_swhid: swh:1:snp:0ce5ce1b6f89d6b89c7ae6a603253e0916f8c84a
+    expected_swhid: swh:1:snp:b1a1cb66e7a27f7a6b2424e953bd21d39c975f78
     name: dangling_branches
     path: payloads/git/dangling_branches/
   - description: Git repo with alias branches (branches pointing to other branches)
