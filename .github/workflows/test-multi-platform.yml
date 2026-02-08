@@ -407,7 +407,6 @@ jobs:
           if [ -n "$CURRENT_SWHID_GEM_VERSION" ]; then
             echo "$CURRENT_SWHID_GEM_VERSION" > current-state/swhid-gem-version.txt
           fi
-        continue-on-error: true
       
       - name: Upload current state for next run
         if: always()
