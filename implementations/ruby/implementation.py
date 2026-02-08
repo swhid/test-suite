@@ -255,56 +255,11 @@ class Implementation(SwhidImplementation):
                 else:
                     logger.debug(f"Ruby: File does not exist: {swhid_cmd}")
         
-        # Fallback: try to find swhid command in PATH (may be Rust binary)
-        logger.debug("Ruby: Checking PATH for swhid command")
-        path_env = os.environ.get("PATH", "")
-        logger.debug(f"Ruby: PATH contains {len(path_env.split(os.pathsep))} entries")
-        if is_windows:
-            for ext in ["", ".bat", ".cmd"]:
-                swhid_name = "swhid" + ext
-                swhid_path = shutil.which(swhid_name)
-                if swhid_path:
-                    logger.debug(f"Ruby: Found {swhid_name} in PATH: {swhid_path}")
-                    path_verify = [swhid_path, "snapshot", "--help"]
-                    if _is_under_gem_home(swhid_path) and not swhid_path.endswith(('.bat', '.cmd')):
-                        path_verify = ["ruby", swhid_path, "snapshot", "--help"]
-                    try:
-                        result = subprocess.run(
-                            path_verify,
-                            capture_output=True,
-                            text=True,
-                            timeout=2
-                        )
-                        logger.debug(f"Ruby: PATH binary snapshot check: returncode={result.returncode}")
-                        if result.returncode == 0 or "snapshot" in result.stdout or "snapshot" in result.stderr:
-                            logger.info(f"Ruby: Found Ruby gem swhid in PATH: {swhid_path}")
-                            self._swhid_path = swhid_path
-                            return swhid_path
-                        else:
-                            logger.debug(f"Ruby: PATH binary doesn't support snapshot, likely Rust binary")
-                    except Exception as e:
-                        logger.debug(f"Ruby: Exception checking PATH binary: {e}")
-        else:
-            swhid_path = shutil.which("swhid")
-            if swhid_path:
-                logger.debug(f"Ruby: Found swhid in PATH: {swhid_path}")
-                path_verify = [swhid_path, "snapshot", "--help"]
-                if _is_under_gem_home(swhid_path):
-                    path_verify = ["ruby", swhid_path, "snapshot", "--help"]
-                try:
-                    result = subprocess.run(
-                        path_verify,
-                        capture_output=True,
-                        text=True,
-                        timeout=2
-                    )
-                    if result.returncode == 0 or "snapshot" in result.stdout or "snapshot" in result.stderr:
-                        logger.info(f"Ruby: Found Ruby gem swhid in PATH: {swhid_path}")
-                        self._swhid_path = swhid_path
-                        return swhid_path
-                except Exception as e:
-                    logger.debug(f"Ruby: Exception checking PATH binary: {e}")
-        
+        # Do NOT fall back to PATH: on CI (e.g. macOS) PATH may contain the Rust swhid-rs
+        # binary first, which uses short subcommands (dir, rev, rel, snp). Using it for the
+        # Ruby implementation would cause "unrecognized subcommand 'directory'" etc.
+        # Only the Ruby gem (from GEM_HOME or gem paths above) uses long names and is valid.
+        logger.debug("Ruby: No gem swhid found in GEM_HOME or gem paths; not checking PATH (would risk using Rust binary)")
         logger.warning("Ruby: Could not find swhid binary in any location")
         return None
 
