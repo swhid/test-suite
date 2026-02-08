@@ -410,21 +410,22 @@ class Implementation(SwhidImplementation):
         else:
             cmd = [swhid_path]
 
-        # Map object types to swhid CLI commands
+        # Map object types to swhid CLI commands.
+        # Ruby gem CLI uses short subcommand names: dir, rev, rel, snp (not directory, revision, release, snapshot).
         if obj_type == "content" or obj_type == "cnt":
             cmd.append("content")
         elif obj_type == "directory" or obj_type == "dir":
-            cmd.append("directory")
+            cmd.append("dir")
         elif obj_type == "revision" or obj_type == "rev":
-            cmd.extend(["revision", payload_path])
+            cmd.extend(["rev", payload_path])
             if commit:
                 cmd.append(commit)
         elif obj_type == "release" or obj_type == "rel":
-            cmd.extend(["release", payload_path])
+            cmd.extend(["rel", payload_path])
             if tag:
                 cmd.append(tag)
         elif obj_type == "snapshot" or obj_type == "snp":
-            cmd.extend(["snapshot", payload_path])
+            cmd.extend(["snp", payload_path])
         elif obj_type is None or obj_type == "auto":
             # Auto-detect based on path
             if os.path.isfile(payload_path):
@@ -432,9 +433,9 @@ class Implementation(SwhidImplementation):
             elif os.path.isdir(payload_path):
                 # Check if it's a git repository
                 if os.path.isdir(os.path.join(payload_path, ".git")):
-                    cmd.extend(["snapshot", payload_path])
+                    cmd.extend(["snp", payload_path])
                 else:
-                    cmd.append("directory")
+                    cmd.append("dir")
             else:
                 raise ValueError(f"Cannot determine object type for {payload_path}")
         else:
@@ -476,10 +477,11 @@ class Implementation(SwhidImplementation):
                 raise RuntimeError(f"Error running Ruby implementation: {e}")
 
         # For directory and git types, pass path as argument
-        # Subcommand may be at index 1 ([path, subcommand]) or 2 ([ruby, path, subcommand])
-        subcommand = next((c for c in cmd if c in ["directory", "revision", "release", "snapshot"]), None)
+        # Subcommand may be at index 1 ([path, subcommand]) or 2 ([ruby, path, subcommand]).
+        # Ruby gem uses short names: dir, rev, rel, snp.
+        subcommand = next((c for c in cmd if c in ["dir", "rev", "rel", "snp"]), None)
         if subcommand is not None:
-            if subcommand == "directory":
+            if subcommand == "dir":
                 # On Windows, we need to preserve file permissions before calling the tool
                 # Create a temporary copy with correct permissions
                 payload_path = self._ensure_permissions_preserved(payload_path)
