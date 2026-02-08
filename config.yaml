@@ -274,8 +274,13 @@ payloads:
     name: simple_revisions_head
     path: payloads/git-repository/simple_revisions.tar.gz
     expected_swhid: swh:1:rev:b7fdd35912b16682ac6e989f75d41870a0f9d904
-  - description: Revision from simple_revisions repo (first commit)
+  - description: Revision from simple_revisions repo (first commit, de1d62e)
     name: simple_revisions_first
+    path: payloads/git-repository/simple_revisions.tar.gz
+    commit: de1d62e
+    expected_swhid: swh:1:rev:de1d62e55c7561f961a70ca57f1da6b3cf16fdb7
+  - description: Revision from simple_revisions repo (second commit, b7fdd35)
+    name: simple_revisions_second
     path: payloads/git-repository/simple_revisions.tar.gz
     commit: b7fdd35
     expected_swhid: swh:1:rev:b7fdd35912b16682ac6e989f75d41870a0f9d904
