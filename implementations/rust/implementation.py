@@ -79,20 +79,47 @@ class Implementation(SwhidImplementation):
                 return str(binary_path)
         
         return None
-    
+
+    def _get_cargo_bin_dirs(self) -> list:
+        """Return list of directories where cargo install puts binaries."""
+        import platform
+        # CARGO_INSTALL_ROOT overrides install root; else CARGO_HOME/bin (default ~/.cargo/bin)
+        install_root = os.environ.get("CARGO_INSTALL_ROOT")
+        if install_root:
+            return [os.path.join(os.path.normpath(install_root), "bin")]
+        cargo_home = os.environ.get("CARGO_HOME", os.path.join(os.path.expanduser("~"), ".cargo"))
+        return [os.path.join(os.path.normpath(cargo_home), "bin")]
+
+    def _find_binary_in_cargo_bin_dirs(self) -> Optional[str]:
+        """Look for swhid binary in CARGO_HOME/bin or CARGO_INSTALL_ROOT/bin. Return path or None."""
+        import platform
+        binary_name = "swhid.exe" if platform.system() == "Windows" else "swhid"
+        for bin_dir in self._get_cargo_bin_dirs():
+            candidate = os.path.join(bin_dir, binary_name)
+            if os.path.isfile(candidate) and os.access(candidate, os.X_OK):
+                return candidate
+        return None
+
     def is_available(self) -> bool:
         """Check if Rust implementation is available.
-        
-        First checks SWHID_RS_PATH environment variable (set by build process).
-        Falls back to PATH search if not set.
+
+        Uses SWHID_RS_PATH, then CARGO_HOME/bin (or CARGO_INSTALL_ROOT/bin),
+        then existing target/release binary if project root exists. Does not
+        use PATH or trigger a build.
         """
-        import shutil
-        
+        import platform
         try:
-            # First, check SWHID_RS_PATH environment variable
             binary_path = self._resolve_binary_path_from_env()
+            if not binary_path:
+                binary_path = self._find_binary_in_cargo_bin_dirs()
+            if not binary_path:
+                project_root = self._get_project_root()
+                if project_root:
+                    binary_name = "swhid.exe" if platform.system() == "Windows" else "swhid"
+                    candidate = str(Path(project_root) / "target" / "release" / binary_name)
+                    if os.path.isfile(candidate) and os.access(candidate, os.X_OK):
+                        binary_path = candidate
             if binary_path:
-                # Verify it's executable and responds to --help
                 result = subprocess.run(
                     [binary_path, "--help"],
                     capture_output=True,
@@ -102,21 +129,6 @@ class Implementation(SwhidImplementation):
                     timeout=5
                 )
                 return result.returncode == 0
-            
-            # Fallback: Check PATH
-            swhid_path = shutil.which("swhid")
-            if swhid_path and Path(swhid_path).exists() and os.access(swhid_path, os.X_OK):
-                # Verify it's executable and responds to --help
-                result = subprocess.run(
-                    [swhid_path, "--help"],
-                    capture_output=True,
-                    text=True,
-                    encoding='utf-8',
-                    errors='replace',
-                    timeout=5
-                )
-                return result.returncode == 0
-            
             return False
         except (subprocess.TimeoutExpired, FileNotFoundError, Exception):
             return False
@@ -164,47 +176,35 @@ class Implementation(SwhidImplementation):
 
     def _ensure_binary_built(self) -> str:
         """Find the Rust swhid binary and return its path.
-        
-        Priority order:
-        1. SWHID_RS_PATH environment variable (set by build process)
-        2. PATH search (fallback)
-        3. Build from source (backward compatibility)
+
+        Priority: SWHID_RS_PATH, then CARGO_HOME/bin (or CARGO_INSTALL_ROOT/bin),
+        then build from source. Does not use PATH.
         """
-        import shutil
         import platform
-        
-        # Use cached path if available
+
         if self._binary_path_cache:
             return self._binary_path_cache
-        
-        # First, check SWHID_RS_PATH environment variable
+
         binary_path = self._resolve_binary_path_from_env()
+        if not binary_path:
+            binary_path = self._find_binary_in_cargo_bin_dirs()
         if binary_path:
             self._binary_path_cache = binary_path
             return binary_path
-        
-        # Fallback: Check PATH
-        binary_path = shutil.which("swhid")
-        if binary_path and Path(binary_path).exists() and os.access(binary_path, os.X_OK):
-            self._binary_path_cache = binary_path
-            return binary_path
-        
-        # Fallback: Try to build from source if project root is available
-        # This maintains backward compatibility for local development
+
         project_root = self._get_project_root()
         if project_root:
             binary_name = "swhid.exe" if platform.system() == "Windows" else "swhid"
             binary_path = str(Path(project_root) / "target" / "release" / binary_name)
-            
-            # If binary doesn't exist at expected location, try to build it
             if not Path(binary_path).exists():
                 binary_path = self._build_binary(project_root)
-            
             self._binary_path_cache = binary_path
             return binary_path
-        
-        # If we can't find or build the binary, raise an error
-        raise RuntimeError("Rust swhid binary not found. Set SWHID_RS_PATH environment variable or ensure swhid is in PATH.")
+
+        raise RuntimeError(
+            "Rust swhid binary not found. Set SWHID_RS_PATH, install via cargo install, "
+            "or run from the swhid-rs project root."
+        )
     
     def compute_swhid(self, payload_path: str, obj_type: Optional[str] = None,
                      commit: Optional[str] = None, tag: Optional[str] = None,
