@@ -527,13 +527,23 @@ jobs:
           echo "GEM_PATH=${{ runner.temp }}/gem-home" >> "$GITHUB_ENV"
           echo "${{ runner.temp }}/gem-home/bin" >> "$GITHUB_PATH"
 
+      - name: Set RUBY_BINDIR for cache key
+        shell: bash
+        run: |
+          if command -v ruby >/dev/null 2>&1; then
+            echo "RUBY_BINDIR=$(dirname $(which ruby))" >> "$GITHUB_ENV"
+          else
+            echo "RUBY_BINDIR=no-ruby" >> "$GITHUB_ENV"
+          fi
+
       - name: Cache GEM_HOME
         uses: actions/cache@v5
         with:
           path: ${{ runner.temp }}/gem-home
-          # If there is a Gemfile.lock, incorporate it; otherwise keep a stable key
-          key: gemhome-${{ runner.os }}-ruby-${{ env.RUBY_VERSION }}-${{ hashFiles('**/Gemfile.lock') }}
+          # Include RUBY_BINDIR so cached bin shebangs match current interpreter path
+          key: gemhome-${{ runner.os }}-ruby-${{ env.RUBY_VERSION }}-${{ env.RUBY_BINDIR }}-${{ hashFiles('**/Gemfile.lock') }}
           restore-keys: |
+            gemhome-${{ runner.os }}-ruby-${{ env.RUBY_VERSION }}-${{ env.RUBY_BINDIR }}-
             gemhome-${{ runner.os }}-ruby-${{ env.RUBY_VERSION }}-
             gemhome-${{ runner.os }}-
 
