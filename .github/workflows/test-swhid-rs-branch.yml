@@ -1,6 +1,5 @@
-# Run the test-suite harness against a specific branch/ref of swhid-rs.
-# Manual only — does not run on push/PR/schedule. Use to validate a swhid-rs
-# branch (e.g. a PR or feature branch) without changing normal CI.
+# Run the test-suite harness against a specific branch/ref of swhid-rs on all platforms.
+# Manual only. Produces per-platform results and a merged summary like the multi-platform workflow.
 
 name: Test suite (swhid-rs branch)
 
@@ -14,14 +13,21 @@ on:
         type: string
 
 jobs:
-  test-rust-branch:
-    runs-on: ubuntu-24.04
+  test:
+    name: Test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+
     permissions:
       contents: read
 
     env:
       SWHID_RS_PROFILE: release
       SWHID_RS_FEATURES: git
+      PYTHON_VERSION: "3.12"
 
     steps:
       - name: Checkout test-suite
@@ -40,25 +46,39 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v6
         with:
-          python-version: "3.12"
+          python-version: ${{ env.PYTHON_VERSION }}
           cache: 'pip'
 
-      - name: Install system dependencies
+      - name: Install system dependencies (Linux)
+        if: runner.os == 'Linux'
         shell: bash
         run: |
           sudo apt-get update
           sudo apt-get install -y libssl-dev pkg-config build-essential libgit2-dev
+
+      - name: Install system dependencies (macOS)
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          brew install libgit2 pkg-config openssl 2>&1 | grep -vE "(Warning:.*is already installed|To reinstall)" || true
+
+      - name: Install system dependencies (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          if (Get-Command choco -ErrorAction SilentlyContinue) {
+            choco install -y vcpkg 2>&1 | Out-Null
+            if (Get-Command vcpkg -ErrorAction SilentlyContinue) {
+              vcpkg install libgit2:x64-windows 2>&1 | Out-Null
+            }
+          }
+        continue-on-error: true
 
       - name: Install test-suite dependencies
         shell: bash
         run: |
           python -m pip install --upgrade pip
           python -m pip install .[dev]
-
-      - name: Install swh.model (optional, for comparison)
-        shell: bash
-        run: python -m pip install swh.model || echo "swh.model not available"
-        continue-on-error: true
 
       - name: Build swhid-rs (${{ inputs.swhid_rs_ref }})
         uses: ./.github/actions/build-swhid-rs
@@ -70,7 +90,8 @@ jobs:
           ref: ${{ inputs.swhid_rs_ref }}
           token: ${{ secrets.SWHID_RS_TOKEN != '' && secrets.SWHID_RS_TOKEN || '' }}
 
-      - name: Add swhid-rs binary to PATH
+      - name: Add swhid-rs binary to PATH (Unix)
+        if: runner.os != 'Windows'
         shell: bash
         run: |
           TARGET_BIN="${CARGO_TARGET_DIR:-${{ runner.temp }}/cargo-target-swhid-rs}/release"
@@ -78,13 +99,144 @@ jobs:
             chmod +x "$TARGET_BIN/swhid"
             echo "$TARGET_BIN" >> "$GITHUB_PATH"
             echo "SWHID_RS_PATH=$TARGET_BIN" >> "$GITHUB_ENV"
-            echo "✅ Using swhid-rs from ref: ${{ inputs.swhid_rs_ref }}"
+            echo "✅ Using swhid-rs ref: ${{ inputs.swhid_rs_ref }}"
           else
             echo "❌ Binary not found at $TARGET_BIN/swhid"
             exit 1
           fi
 
+      - name: Add swhid-rs binary to PATH (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $CARGO_TARGET_DIR = if ($env:CARGO_TARGET_DIR) { $env:CARGO_TARGET_DIR } else { "$env:RUNNER_TEMP\cargo-target-swhid-rs" }
+          $TARGET_BIN = "$CARGO_TARGET_DIR\release"
+          if (Test-Path "$TARGET_BIN\swhid.exe") {
+            "$TARGET_BIN" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+            "SWHID_RS_PATH=$TARGET_BIN" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+            Write-Host "✅ Using swhid-rs ref: ${{ inputs.swhid_rs_ref }}"
+          } else {
+            Write-Host "❌ Binary not found at $TARGET_BIN\swhid.exe"
+            exit 1
+          }
+
       - name: Run harness (rust only)
         shell: bash
         run: |
-          swhid-harness --impl rust --log-level warning --output-format canonical
+          swhid-harness --impl rust --log-level warning --output-format canonical --dashboard-output results.json || true
+
+      - name: Generate HTML results table
+        if: always()
+        shell: bash
+        run: |
+          if [ -f results.json ]; then
+            python scripts/view_results.py results.json --output results.html || echo "Warning: Could not generate HTML table"
+          fi
+        continue-on-error: true
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: results-${{ matrix.os }}
+          path: |
+            results.json
+            results.html
+          retention-days: 30
+
+      - name: Generate test summary
+        if: always()
+        shell: bash
+        run: |
+          echo "## Test Results (${{ matrix.os }}) — swhid-rs ref: ${{ inputs.swhid_rs_ref }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ -f results.json ]; then
+            python3 -c "
+import json
+with open('results.json') as f:
+    d = json.load(f)
+a = d.get('aggregates', {})
+b = a.get('by_implementation', {})
+if b:
+    for impl, s in b.items():
+        p = s.get('passed', 0)
+        fa = s.get('failed', 0)
+        sk = s.get('skipped', 0)
+        t = p + fa + sk
+        r = (p / t * 100) if t else 0
+        print(f'| Metric | Value |')
+        print(f'|--------|-------|')
+        print(f'| Total  | {t} |')
+        print(f'| Passed | {p} |')
+        print(f'| Failed | {fa} |')
+        print(f'| Skipped | {sk} |')
+        print(f'| Success rate | {r:.1f}% |')
+        break
+else:
+    print('| Note | Results format not recognized |')
+" >> $GITHUB_STEP_SUMMARY 2>&1 || echo "| Note | Error parsing results |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| Note | No results.json (harness may have been skipped) |" >> $GITHUB_STEP_SUMMARY
+          fi
+
+  summary:
+    name: Summary (all platforms)
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v7
+        with:
+          path: artifacts
+
+      - name: Merge results and generate summary
+        shell: bash
+        env:
+          SWHID_RS_REF: ${{ inputs.swhid_rs_ref }}
+        run: |
+          echo "## Multi-platform summary — swhid-rs ref: $SWHID_RS_REF" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Platform | Passed | Failed | Skipped | Total | Rate |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|--------|--------|---------|-------|------|" >> $GITHUB_STEP_SUMMARY
+          for f in artifacts/*/results.json; do
+            [ -f "$f" ] || continue
+            platform=$(basename "$(dirname "$f")")
+            export RESULTS_FILE="$f" PLATFORM="$platform"
+            python3 -c '
+import json, os
+p = os.environ.get("PLATFORM", "?")
+f = os.environ.get("RESULTS_FILE", "")
+if not f:
+    print("| ? | — | — | — | — | — |")
+    exit(0)
+try:
+    with open(f) as fp:
+        d = json.load(fp)
+    a = d.get("aggregates", {})
+    b = a.get("by_implementation", {})
+    if b:
+        for impl, s in b.items():
+            passed = s.get("passed", 0)
+            failed = s.get("failed", 0)
+            skipped = s.get("skipped", 0)
+            total = passed + failed + skipped
+            rate = (passed / total * 100) if total else 0
+            print(f"| {p} | {passed} | {failed} | {skipped} | {total} | {rate:.1f}% |")
+            break
+    else:
+        print(f"| {p} | — | — | — | — | — |")
+except Exception:
+    print(f"| {p} | — | — | — | — | — |")
+' >> $GITHUB_STEP_SUMMARY 2>&1 || echo "| $platform | — | — | — | — | — |" >> $GITHUB_STEP_SUMMARY
+          done
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ -f tools/merge_results.py ]; then
+            python tools/merge_results.py artifacts/*/results.json --site site
+            echo "Merged results written to \`site/\`. Download artifacts for per-platform results." >> $GITHUB_STEP_SUMMARY
+          fi
