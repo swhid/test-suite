@@ -688,7 +688,7 @@ class Implementation(SwhidImplementation):
                                 rev_swhid = rev_result.stdout.strip()
                                 logger.info(f"  {branch:20} -> {rev_swhid}")
                             else:
-                                logger.warning(f"  {branch:20} -> Failed to compute revision SWHID: {rev_result.stderr[:100]}")
+                                logger.debug(f"  {branch:20} -> Failed to compute revision SWHID: {rev_result.stderr[:100]}")
                     except Exception as e:
                         logger.debug(f"  {branch:20} -> Error: {e}")
         except Exception as e:
@@ -750,7 +750,7 @@ class Implementation(SwhidImplementation):
                                 rel_swhid = rel_result.stdout.strip()
                                 logger.info(f"  {tag:20} ({tag_type:8}) -> {rel_swhid}")
                             else:
-                                logger.warning(f"  {tag:20} -> Failed to compute release SWHID: {rel_result.stderr[:100]}")
+                                logger.debug(f"  {tag:20} -> Failed to compute release SWHID: {rel_result.stderr[:100]}")
                     except Exception as e:
                         logger.debug(f"  {tag:20} -> Error: {e}")
         except Exception as e:

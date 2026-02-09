@@ -91,21 +91,18 @@ class SwhidHarness:
     
     def _load_implementations(self, impl_names: Optional[List[str]] = None) -> Dict[str, SwhidImplementation]:
         """Load implementations using the discovery system."""
-        all_implementations = self.discovery.discover_implementations()
-        
-        if impl_names is None:
-            # Use all available implementations
-            return all_implementations
-        
-        # Filter to requested implementations
-        filtered = {}
-        for name in impl_names:
-            if name in all_implementations:
-                filtered[name] = all_implementations[name]
-            else:
-                logger.warning(f"Implementation '{name}' not found")
-        
-        return filtered
+        # When only specific impls are requested, discover only those so we don't load
+        # or log "not available" for others (e.g. Ruby/Go when running --impl rust).
+        if impl_names is not None:
+            implementations = self.discovery.discover_implementations(only_impls=impl_names)
+            filtered = {}
+            for name in impl_names:
+                if name in implementations:
+                    filtered[name] = implementations[name]
+                else:
+                    logger.warning(f"Implementation '{name}' not found or not available")
+            return filtered
+        return self.discovery.discover_implementations()
     
     def _cleanup_temp_dirs(self):
         """Clean up temporary directories created from tarballs (delegates to ResourceManager)."""

@@ -21,17 +21,25 @@ class ImplementationDiscovery:
         self.implementations_dir = Path(implementations_dir)
         self._implementations_cache: Dict[str, SwhidImplementation] = {}
     
-    def discover_implementations(self, force_reload: bool = False) -> Dict[str, SwhidImplementation]:
+    def discover_implementations(
+        self,
+        force_reload: bool = False,
+        only_impls: Optional[List[str]] = None
+    ) -> Dict[str, SwhidImplementation]:
         """
-        Auto-discover all implementations.
+        Auto-discover implementations.
         
         Args:
             force_reload: If True, reload implementations even if cached
+            only_impls: If set, only load these implementation names (e.g. ['rust']).
+                        Avoids loading others, so their is_available() is never
+                        called and no "not available" warnings are logged.
             
         Returns:
             Dictionary mapping implementation names to instances
         """
-        if not force_reload and self._implementations_cache:
+        cache_key = (tuple(sorted(only_impls or [])) if only_impls else None)
+        if not force_reload and self._implementations_cache and getattr(self, "_cache_key", None) == cache_key:
             return self._implementations_cache
         
         implementations = {}
@@ -40,12 +48,14 @@ class ImplementationDiscovery:
             logger.warning(f"Implementations directory not found: {self.implementations_dir}")
             return implementations
         
+        only_set = set(only_impls) if only_impls else None
+        
         for impl_dir in self.implementations_dir.iterdir():
             if not impl_dir.is_dir():
                 continue
-            
-            # Skip hidden directories
             if impl_dir.name.startswith('.'):
+                continue
+            if only_set is not None and impl_dir.name not in only_set:
                 continue
             
             try:
@@ -60,6 +70,7 @@ class ImplementationDiscovery:
                 logger.warning(f"Failed to load implementation {impl_dir.name}: {e}")
         
         self._implementations_cache = implementations
+        self._cache_key = cache_key
         return implementations
     
     def _load_implementation(self, impl_dir: Path) -> Optional[SwhidImplementation]:
