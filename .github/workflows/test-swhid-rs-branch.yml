@@ -151,30 +151,7 @@ jobs:
           echo "## Test Results (${{ matrix.os }}) — swhid-rs ref: ${{ inputs.swhid_rs_ref }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           if [ -f results.json ]; then
-            python3 -c "
-import json
-with open('results.json') as f:
-    d = json.load(f)
-a = d.get('aggregates', {})
-b = a.get('by_implementation', {})
-if b:
-    for impl, s in b.items():
-        p = s.get('passed', 0)
-        fa = s.get('failed', 0)
-        sk = s.get('skipped', 0)
-        t = p + fa + sk
-        r = (p / t * 100) if t else 0
-        print(f'| Metric | Value |')
-        print(f'|--------|-------|')
-        print(f'| Total  | {t} |')
-        print(f'| Passed | {p} |')
-        print(f'| Failed | {fa} |')
-        print(f'| Skipped | {sk} |')
-        print(f'| Success rate | {r:.1f}% |')
-        break
-else:
-    print('| Note | Results format not recognized |')
-" >> $GITHUB_STEP_SUMMARY 2>&1 || echo "| Note | Error parsing results |" >> $GITHUB_STEP_SUMMARY
+            python3 -c "import json; fp=open('results.json'); d=json.load(fp); fp.close(); a=d.get('aggregates',{}); b=a.get('by_implementation',{}); p=sum(s.get('passed',0) for s in b.values()); fa=sum(s.get('failed',0) for s in b.values()); sk=sum(s.get('skipped',0) for s in b.values()); t=p+fa+sk; r=(p/t*100) if t>0 else 0; print(f'| Metric | Value |'); print(f'|--------|-------|'); print(f'| Total | {t} |'); print(f'| Passed | {p} |'); print(f'| Failed | {fa} |'); print(f'| Skipped | {sk} |'); print(f'| Success rate | {r:.1f}% |') if b else print('| Note | Results format not recognized |')" >> $GITHUB_STEP_SUMMARY 2>&1 || echo "| Note | Error parsing results |" >> $GITHUB_STEP_SUMMARY
           else
             echo "| Note | No results.json (harness may have been skipped) |" >> $GITHUB_STEP_SUMMARY
           fi
@@ -208,32 +185,7 @@ else:
             [ -f "$f" ] || continue
             platform=$(basename "$(dirname "$f")")
             export RESULTS_FILE="$f" PLATFORM="$platform"
-            python3 -c '
-import json, os
-p = os.environ.get("PLATFORM", "?")
-f = os.environ.get("RESULTS_FILE", "")
-if not f:
-    print("| ? | — | — | — | — | — |")
-    exit(0)
-try:
-    with open(f) as fp:
-        d = json.load(fp)
-    a = d.get("aggregates", {})
-    b = a.get("by_implementation", {})
-    if b:
-        for impl, s in b.items():
-            passed = s.get("passed", 0)
-            failed = s.get("failed", 0)
-            skipped = s.get("skipped", 0)
-            total = passed + failed + skipped
-            rate = (passed / total * 100) if total else 0
-            print(f"| {p} | {passed} | {failed} | {skipped} | {total} | {rate:.1f}% |")
-            break
-    else:
-        print(f"| {p} | — | — | — | — | — |")
-except Exception:
-    print(f"| {p} | — | — | — | — | — |")
-' >> $GITHUB_STEP_SUMMARY 2>&1 || echo "| $platform | — | — | — | — | — |" >> $GITHUB_STEP_SUMMARY
+            python3 scripts/summary_row.py >> $GITHUB_STEP_SUMMARY 2>&1 || echo "| $platform | — | — | — | — | — |" >> $GITHUB_STEP_SUMMARY
           done
           echo "" >> $GITHUB_STEP_SUMMARY
           if [ -f tools/merge_results.py ]; then
