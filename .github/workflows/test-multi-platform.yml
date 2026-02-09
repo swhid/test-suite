@@ -517,7 +517,7 @@ jobs:
           bundler-cache: false
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version: ${{ env.GO_VERSION }}
           # No go.sum in this repo; we only run "go install ...@latest", so skip cache
