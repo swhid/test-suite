@@ -1,0 +1,90 @@
+# Run the test-suite harness against a specific branch/ref of swhid-rs.
+# Manual only — does not run on push/PR/schedule. Use to validate a swhid-rs
+# branch (e.g. a PR or feature branch) without changing normal CI.
+
+name: Test suite (swhid-rs branch)
+
+on:
+  workflow_dispatch:
+    inputs:
+      swhid_rs_ref:
+        description: 'Branch, tag, or commit of swhid/swhid-rs to build and test (e.g. main, feature/xyz, or a SHA)'
+        required: true
+        default: 'main'
+        type: string
+
+jobs:
+  test-rust-branch:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+
+    env:
+      SWHID_RS_PROFILE: release
+      SWHID_RS_FEATURES: git
+
+    steps:
+      - name: Checkout test-suite
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Configure Git for SWHID testing
+        shell: bash
+        run: |
+          git config --global core.autocrlf false
+          git config --global core.filemode true
+          git config --global core.precomposeunicode false
+          git config --global core.quotepath false
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: 'pip'
+
+      - name: Install system dependencies
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libssl-dev pkg-config build-essential libgit2-dev
+
+      - name: Install test-suite dependencies
+        shell: bash
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install .[dev]
+
+      - name: Install swh.model (optional, for comparison)
+        shell: bash
+        run: python -m pip install swh.model || echo "swh.model not available"
+        continue-on-error: true
+
+      - name: Build swhid-rs (${{ inputs.swhid_rs_ref }})
+        uses: ./.github/actions/build-swhid-rs
+        with:
+          rust: stable
+          profile: ${{ env.SWHID_RS_PROFILE }}
+          features: ${{ env.SWHID_RS_FEATURES }}
+          repository: swhid/swhid-rs
+          ref: ${{ inputs.swhid_rs_ref }}
+          token: ${{ secrets.SWHID_RS_TOKEN != '' && secrets.SWHID_RS_TOKEN || '' }}
+
+      - name: Add swhid-rs binary to PATH
+        shell: bash
+        run: |
+          TARGET_BIN="${CARGO_TARGET_DIR:-${{ runner.temp }}/cargo-target-swhid-rs}/release"
+          if [ -f "$TARGET_BIN/swhid" ]; then
+            chmod +x "$TARGET_BIN/swhid"
+            echo "$TARGET_BIN" >> "$GITHUB_PATH"
+            echo "SWHID_RS_PATH=$TARGET_BIN" >> "$GITHUB_ENV"
+            echo "✅ Using swhid-rs from ref: ${{ inputs.swhid_rs_ref }}"
+          else
+            echo "❌ Binary not found at $TARGET_BIN/swhid"
+            exit 1
+          fi
+
+      - name: Run harness (rust only)
+        shell: bash
+        run: |
+          swhid-harness --impl rust --log-level warning --output-format canonical
