@@ -442,6 +442,9 @@ jobs:
       RUBY_VERSION: "3.2"
       PYTHON_VERSION: "3.12"
       GO_VERSION: "1.22"
+      # Let Go use/download the toolchain required by the module (e.g. swhid-go@latest).
+      # Avoids workflow breaks when upstream bumps go version and Dependabot doesn't update this file.
+      GOTOOLCHAIN: auto
 
     steps:
       - name: Checkout test-suite
