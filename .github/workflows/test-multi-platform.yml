@@ -442,9 +442,6 @@ jobs:
       RUBY_VERSION: "3.2"
       PYTHON_VERSION: "3.12"
       GO_VERSION: "1.22"
-      # Let Go use/download the toolchain required by the module (e.g. swhid-go@latest).
-      # Avoids workflow breaks when upstream bumps go version and Dependabot doesn't update this file.
-      GOTOOLCHAIN: auto
 
     steps:
       - name: Checkout test-suite
@@ -528,6 +525,10 @@ jobs:
 
       - name: Install swhid-go
         shell: bash
+        env:
+          # Override setup-go's GOTOOLCHAIN=local so Go can auto-download the toolchain
+          # version required by the module (e.g. go >= 1.25.5 for swhid-go@latest)
+          GOTOOLCHAIN: auto
         run: go install github.com/andrew/swhid-go/cmd/swhid@latest
 
       # --------------------------------------------------------------------
