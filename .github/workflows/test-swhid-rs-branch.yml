@@ -88,7 +88,7 @@ jobs:
           features: ${{ env.SWHID_RS_FEATURES }}
           repository: swhid/swhid-rs
           ref: ${{ inputs.swhid_rs_ref }}
-          token: ${{ secrets.SWHID_RS_TOKEN != '' && secrets.SWHID_RS_TOKEN || '' }}
+          token: ${{ github.token }}
 
       - name: Add swhid-rs binary to PATH (Unix)
         if: runner.os != 'Windows'

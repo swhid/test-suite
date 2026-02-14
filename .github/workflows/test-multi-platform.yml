@@ -211,23 +211,14 @@ jobs:
           echo "### swhid-rs Repository" >> $GITHUB_STEP_SUMMARY
           SWHID_RS_REPO="swhid/swhid-rs"
           SWHID_RS_REF="main"
-          # Get latest commit SHA from GitHub API
-          # Use SWHID_RS_TOKEN if available (for private repos or rate limits), fallback to GITHUB_TOKEN
-          SWHID_RS_TOKEN="${{ secrets.SWHID_RS_TOKEN }}"
-          if [ -z "$SWHID_RS_TOKEN" ] || [ "$SWHID_RS_TOKEN" = "" ]; then
-            SWHID_RS_TOKEN="${{ secrets.GITHUB_TOKEN }}"
-            echo "Using GITHUB_TOKEN for swhid-rs API" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "Using SWHID_RS_TOKEN for swhid-rs API" >> $GITHUB_STEP_SUMMARY
-          fi
-          
+          # Get latest commit SHA from GitHub API (swhid-rs is public)
           # Try to fetch commit SHA with better error handling
           # Store response in temp file to handle both stdout and stderr
           TEMP_RESPONSE=$(mktemp)
           TEMP_ERROR=$(mktemp)
           
           HTTP_CODE=$(curl -s -w "%{http_code}" -o "$TEMP_RESPONSE" \
-            -H "Authorization: Bearer ${SWHID_RS_TOKEN}" \
+            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
             -H "Accept: application/vnd.github.v3+json" \
             "https://api.github.com/repos/${SWHID_RS_REPO}/commits/${SWHID_RS_REF}" 2>"$TEMP_ERROR")
           
@@ -656,7 +647,7 @@ jobs:
           repository: swhid/swhid-rs
           ref: main
           # Token is optional for public repos - action will use GITHUB_TOKEN if not provided
-          token: ${{ secrets.SWHID_RS_TOKEN != '' && secrets.SWHID_RS_TOKEN || '' }}
+          token: ${{ github.token }}
 
       - name: Add swhid-rs binary to PATH and export availability (Unix)
         if: runner.os != 'Windows'

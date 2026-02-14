@@ -119,7 +119,7 @@ jobs:
           repository: swhid/swhid-rs
           ref: main
           # Token is optional for public repos - action will use GITHUB_TOKEN if not provided
-          token: ${{ secrets.SWHID_RS_TOKEN != '' && secrets.SWHID_RS_TOKEN || '' }}
+          token: ${{ github.token }}
 
       - name: Add swhid-rs binary to PATH and export availability
         shell: bash
