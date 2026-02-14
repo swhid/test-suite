@@ -91,6 +91,26 @@ runs:
         echo "CARGO_LOCK_HASH=${{ env.CARGO_LOCK_HASH }}"
 
     # ------------------------------------------------------------
+    # System libraries fingerprint (libgit2, openssl paths/versions)
+    # ------------------------------------------------------------
+    - name: Compute system libraries hash
+      shell: bash
+      run: |
+        SYS_LIBS=""
+        if command -v pkg-config >/dev/null 2>&1; then
+          for pkg in libgit2 openssl; do
+            ver=$(pkg-config --modversion "$pkg" 2>/dev/null || echo "none")
+            dir=$(pkg-config --variable=libdir "$pkg" 2>/dev/null || echo "none")
+            SYS_LIBS="${SYS_LIBS}${pkg}:${ver}:${dir};"
+          done
+        fi
+        if [ -z "$SYS_LIBS" ]; then
+          SYS_LIBS="no-pkg-config"
+        fi
+        echo "SYS_LIBS_HASH=$(echo -n "$SYS_LIBS" | sha256sum | cut -d' ' -f1)" >> "$GITHUB_ENV"
+        echo "System libs fingerprint: ${SYS_LIBS:0:80}..."
+
+    # ------------------------------------------------------------
     # Cache 1: Cargo registry + git (download cache)
     # ------------------------------------------------------------
     - name: Cache Cargo registry and git
@@ -106,7 +126,7 @@ runs:
 
     # ------------------------------------------------------------
     # Cache 2: Rust target dir (compiled outputs, strict)
-    # Include commit hash so cache invalidates when source changes
+    # SYS_LIBS_HASH invalidates when libgit2/openssl version or path changes
     # ------------------------------------------------------------
     - name: Cache Rust target dir
       uses: actions/cache@v4
@@ -120,11 +140,11 @@ runs:
           feat${{ env.SWHID_RS_FEATURES }}-
           ${{ env.RUSTC_HASH }}-
           ${{ env.CARGO_LOCK_HASH }}-
-          ${{ env.SWHID_RS_COMMIT }}
+          ${{ env.SYS_LIBS_HASH }}
         restore-keys: |
-          swhid-rs-target-${{ runner.os }}-${{ inputs.rust }}-${{ env.SWHID_RS_PROFILE }}-feat${{ env.SWHID_RS_FEATURES }}-${{ env.RUSTC_HASH }}-${{ env.CARGO_LOCK_HASH }}-
-          swhid-rs-target-${{ runner.os }}-${{ inputs.rust }}-${{ env.SWHID_RS_PROFILE }}-feat${{ env.SWHID_RS_FEATURES }}-${{ env.RUSTC_HASH }}-
-          swhid-rs-target-${{ runner.os }}-${{ inputs.rust }}-${{ env.SWHID_RS_PROFILE }}-
+          swhid-rs-target-${{ runner.os }}-${{ inputs.rust }}-${{ env.SWHID_RS_PROFILE }}-feat${{ env.SWHID_RS_FEATURES }}-${{ env.RUSTC_HASH }}-${{ env.CARGO_LOCK_HASH }}-${{ env.SYS_LIBS_HASH }}-
+          swhid-rs-target-${{ runner.os }}-${{ inputs.rust }}-${{ env.SWHID_RS_PROFILE }}-feat${{ env.SWHID_RS_FEATURES }}-${{ env.RUSTC_HASH }}-${{ env.SYS_LIBS_HASH }}-
+          swhid-rs-target-${{ runner.os }}-${{ inputs.rust }}-${{ env.SWHID_RS_PROFILE }}-feat${{ env.SWHID_RS_FEATURES }}-${{ env.SYS_LIBS_HASH }}-
 
     # ------------------------------------------------------------
     # Build
