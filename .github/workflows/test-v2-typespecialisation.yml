@@ -240,11 +240,13 @@ jobs:
           fi
 
   publish-exploration-results:
-    name: Publish to swhid-exploration-results
+    name: Publish to swhid-exploration-deploy
     needs: [summary]
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    # Non-blocking: fails if swhid/swhid-exploration-deploy doesn't exist or deploy key lacks access
+    continue-on-error: true
 
     steps:
       - name: Checkout
@@ -295,11 +297,11 @@ jobs:
           fi
           echo "Site structure verified"
 
-      - name: Deploy to swhid-exploration-results
+      - name: Deploy to swhid-exploration-deploy
         uses: peaceiris/actions-gh-pages@v4
         with:
           deploy_key: ${{ secrets.SWHID_EXPLORATION_RESULTS_DEPLOY_KEY }}
-          external_repository: swhid/swhid-exploration-results
+          external_repository: swhid/swhid-exploration-deploy
           publish_dir: ./site
           publish_branch: gh-pages
           user_name: github-actions[bot]
