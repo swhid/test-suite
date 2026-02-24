@@ -1,0 +1,306 @@
+# Test v2-typespecialisation branch of swhid-rs with v2/SHA256 support.
+# Manual only. Choose to run both v1 and v2, or v2/SHA256 only.
+
+name: Test v2-typespecialisation (v2/SHA256)
+
+on:
+  workflow_dispatch:
+    inputs:
+      swhid_rs_ref:
+        description: 'Branch, tag, or commit of swhid/swhid-rs to build'
+        required: true
+        default: 'v2-typespecialisation'
+        type: string
+      test_mode:
+        description: 'Which tests to run'
+        required: true
+        default: 'both'
+        type: choice
+        options:
+          - both
+          - sha256
+      repository:
+        description: 'Repository (owner/name) for swhid-rs'
+        required: false
+        default: 'swhid/swhid-rs'
+        type: string
+
+jobs:
+  test:
+    name: Test (${{ matrix.os }}) — ${{ inputs.test_mode }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+
+    permissions:
+      contents: read
+
+    env:
+      SWHID_RS_PROFILE: release
+      SWHID_RS_FEATURES: git
+      PYTHON_VERSION: "3.12"
+
+    steps:
+      - name: Checkout test-suite
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Configure Git for SWHID testing
+        shell: bash
+        run: |
+          git config --global core.autocrlf false
+          git config --global core.filemode true
+          git config --global core.precomposeunicode false
+          git config --global core.quotepath false
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Install system dependencies (Linux)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libssl-dev pkg-config build-essential libgit2-dev
+
+      - name: Install system dependencies (macOS)
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          brew install libgit2 pkg-config openssl 2>&1 | grep -vE "(Warning:.*is already installed|To reinstall)" || true
+
+      - name: Install system dependencies (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          if (Get-Command choco -ErrorAction SilentlyContinue) {
+            choco install -y vcpkg 2>&1 | Out-Null
+            if (Get-Command vcpkg -ErrorAction SilentlyContinue) {
+              vcpkg install libgit2:x64-windows 2>&1 | Out-Null
+            }
+          }
+        continue-on-error: true
+
+      - name: Install test-suite dependencies
+        shell: bash
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install .[dev]
+
+      - name: Build swhid-rs (${{ inputs.swhid_rs_ref }})
+        uses: ./.github/actions/build-swhid-rs
+        with:
+          rust: stable
+          profile: ${{ env.SWHID_RS_PROFILE }}
+          features: ${{ env.SWHID_RS_FEATURES }}
+          repository: ${{ inputs.repository }}
+          ref: ${{ inputs.swhid_rs_ref }}
+          token: ${{ github.token }}
+
+      - name: Add swhid-rs binary to PATH (Unix)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          TARGET_BIN="${CARGO_TARGET_DIR:-${{ runner.temp }}/cargo-target-swhid-rs}/release"
+          if [ -f "$TARGET_BIN/swhid" ]; then
+            chmod +x "$TARGET_BIN/swhid"
+            echo "$TARGET_BIN" >> "$GITHUB_PATH"
+            echo "SWHID_RS_PATH=$TARGET_BIN" >> "$GITHUB_ENV"
+            echo "✅ Using swhid-rs ref: ${{ inputs.swhid_rs_ref }}"
+          else
+            echo "❌ Binary not found at $TARGET_BIN/swhid"
+            exit 1
+          fi
+
+      - name: Add swhid-rs binary to PATH (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $CARGO_TARGET_DIR = if ($env:CARGO_TARGET_DIR) { $env:CARGO_TARGET_DIR } else { "$env:RUNNER_TEMP\cargo-target-swhid-rs" }
+          $TARGET_BIN = "$CARGO_TARGET_DIR\release"
+          if (Test-Path "$TARGET_BIN\swhid.exe") {
+            "$TARGET_BIN" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+            "SWHID_RS_PATH=$TARGET_BIN" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+            Write-Host "✅ Using swhid-rs ref: ${{ inputs.swhid_rs_ref }}"
+          } else {
+            Write-Host "❌ Binary not found at $TARGET_BIN\swhid.exe"
+            exit 1
+          }
+
+      - name: Run harness (rust, ${{ inputs.test_mode }})
+        shell: bash
+        run: |
+          if [ "${{ inputs.test_mode }}" = "both" ]; then
+            swhid-harness --impl rust --test-both-versions --log-level warning --output-format canonical --dashboard-output results.json || true
+          else
+            swhid-harness --impl rust --hash sha256 --log-level warning --output-format canonical --dashboard-output results.json || true
+          fi
+
+      - name: Generate HTML results table
+        if: always()
+        shell: bash
+        run: |
+          if [ -f results.json ]; then
+            python scripts/view_results.py results.json --output results.html || echo "Warning: Could not generate HTML table"
+          fi
+        continue-on-error: true
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: results-${{ matrix.os }}-${{ inputs.test_mode }}
+          path: |
+            results.json
+            results.html
+          retention-days: 30
+
+      - name: Generate test summary
+        if: always()
+        shell: bash
+        run: |
+          echo "## Test Results (${{ matrix.os }}) — swhid-rs: ${{ inputs.swhid_rs_ref }}, mode: ${{ inputs.test_mode }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ -f results.json ]; then
+            python3 -c "
+          import json
+          try:
+            with open('results.json') as fp:
+              d = json.load(fp)
+            a = d.get('aggregates', {})
+            b = a.get('by_implementation', {})
+            if b:
+              p = sum(s.get('passed', 0) for s in b.values())
+              fa = sum(s.get('failed', 0) for s in b.values())
+              sk = sum(s.get('skipped', 0) for s in b.values())
+              t = p + fa + sk
+              r = (p / t * 100) if t > 0 else 0
+              print('| Metric | Value |')
+              print('|--------|-------|')
+              print(f'| Total | {t} |')
+              print(f'| Passed | {p} |')
+              print(f'| Failed | {fa} |')
+              print(f'| Skipped | {sk} |')
+              print(f'| Success rate | {r:.1f}% |')
+            else:
+              print('| Note | Results format not recognized |')
+          except Exception as e:
+            print(f'| Note | Error: {e} |')
+          " >> $GITHUB_STEP_SUMMARY 2>&1 || echo "| Note | Error parsing results |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| Note | No results.json (harness may have been skipped) |" >> $GITHUB_STEP_SUMMARY
+          fi
+
+  summary:
+    name: Summary (all platforms)
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v7
+        with:
+          path: artifacts
+
+      - name: Merge results and generate summary table
+        shell: bash
+        env:
+          SWHID_RS_REF: ${{ inputs.swhid_rs_ref }}
+          TEST_MODE: ${{ inputs.test_mode }}
+        run: |
+          echo "## v2-typespecialisation test summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**swhid-rs ref:** \`$SWHID_RS_REF\` | **Mode:** $TEST_MODE" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Platform | Passed | Failed | Skipped | Total | Rate |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|--------|--------|---------|-------|------|" >> $GITHUB_STEP_SUMMARY
+          for f in artifacts/results-*/results.json; do
+            [ -f "$f" ] || continue
+            platform=$(basename "$(dirname "$f")" | sed 's/^results-//' | sed 's/-both$//' | sed 's/-sha256$//')
+            export RESULTS_FILE="$f" PLATFORM="$platform"
+            python3 scripts/summary_row.py >> $GITHUB_STEP_SUMMARY 2>&1 || echo "| $platform | — | — | — | — | — |" >> $GITHUB_STEP_SUMMARY
+          done
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ -f tools/merge_results.py ]; then
+            python tools/merge_results.py artifacts/results-*/results.json --site site 2>/dev/null || true
+            if [ -d site ]; then
+              echo "Merged results written to \`site/\`. Download artifacts for per-platform results." >> $GITHUB_STEP_SUMMARY
+            fi
+          fi
+
+  publish-exploration-results:
+    name: Publish to swhid-exploration-results
+    needs: [summary]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v7
+        with:
+          path: artifacts
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .[dev]
+
+      - name: Merge results
+        shell: bash
+        run: |
+          if [ -f tools/merge_results.py ]; then
+            python tools/merge_results.py artifacts/results-*/results.json --site site
+          else
+            mkdir -p site
+            echo "<html><body><h1>Test Results</h1><p>Results are available in the artifacts.</p></body></html>" > site/index.html
+          fi
+
+      - name: Generate dashboard
+        shell: bash
+        run: |
+          python -m tools.dashboard \
+            --site site \
+            --data site/data \
+            --artifacts artifacts
+
+      - name: Verify site structure
+        shell: bash
+        run: |
+          if [ ! -f site/index.html ]; then
+            echo "ERROR: site/index.html not found"
+            exit 1
+          fi
+          echo "Site structure verified"
+
+      - name: Deploy to swhid-exploration-results
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          deploy_key: ${{ secrets.SWHID_EXPLORATION_RESULTS_DEPLOY_KEY }}
+          external_repository: swhid/swhid-exploration-results
+          publish_dir: ./site
+          publish_branch: gh-pages
+          user_name: github-actions[bot]
+          user_email: 41898282+github-actions[bot]@users.noreply.github.com
