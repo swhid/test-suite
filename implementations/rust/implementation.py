@@ -237,7 +237,7 @@ class Implementation(SwhidImplementation):
         if version == 2:
             cmd.extend(["--version", "2"])
         if hash_algo == "sha256":
-            cmd.extend(["--hash", "sha256"])
+            cmd.extend(["--hash", "sha256", "--format", "hex"])
         
         if obj_type == "content":
             # Try both formats to support both experimental and published versions
@@ -346,7 +346,7 @@ class Implementation(SwhidImplementation):
                         if version == 2:
                             alt_cmd.extend(["--version", "2"])
                         if hash_algo == "sha256":
-                            alt_cmd.extend(["--hash", "sha256"])
+                            alt_cmd.extend(["--hash", "sha256", "--format", "hex"])
                         alt_cmd.extend(["content", "--file", payload_path])
                         
                         alt_result = subprocess.run(
@@ -369,7 +369,7 @@ class Implementation(SwhidImplementation):
                         if version == 2:
                             alt_cmd.extend(["--version", "2"])
                         if hash_algo == "sha256":
-                            alt_cmd.extend(["--hash", "sha256"])
+                            alt_cmd.extend(["--hash", "sha256", "--format", "hex"])
                         alt_cmd.extend(["content", payload_path])
                         
                         alt_result = subprocess.run(
@@ -511,7 +511,7 @@ class Implementation(SwhidImplementation):
         if version == 2:
             cmd.extend(["--version", "2"])
         if hash_algo == "sha256":
-            cmd.extend(["--hash", "sha256"])
+            cmd.extend(["--hash", "sha256", "--format", "hex"])
         
         # If we have a cached format, try that first
         if self._content_command_format == "file_flag":
