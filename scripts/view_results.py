@@ -359,14 +359,21 @@ def get_error_summary(error: Optional[Dict]) -> str:
 
 def create_html_table(results_data: Dict, variant_config: Optional[Dict] = None) -> str:
     """Create an HTML table with color-coded results.
-    
+
     Args:
         results_data: Results dictionary with tests and implementations
         variant_config: Optional variant configuration dict for variant-specific display
     """
-    implementations = sorted([impl['id'] for impl in results_data.get('implementations', [])])
+    # Include all impl names from metadata and from actual results (handles rust_v1/rust_v2)
+    impl_from_meta = {impl['id'] for impl in results_data.get('implementations', [])}
+    impl_from_results = {
+        r['implementation']
+        for t in results_data.get('tests', [])
+        for r in t.get('results', [])
+    }
+    implementations = sorted(impl_from_meta | impl_from_results)
     tests = results_data.get('tests', [])
-    
+
     if not implementations or not tests:
         return "<p>No data to display</p>"
     
@@ -504,41 +511,50 @@ def create_html_table(results_data: Dict, variant_config: Optional[Dict] = None)
         test_id = test.get('id', 'unknown')
         expected = test.get('expected', {})
         
-        # Get expected SWHID - use variant-specific key if available
+        results = test.get('results', [])
+        result_map = {r['implementation']: r for r in results}
+
+        # Get expected SWHID - use variant-specific key if available, else pick per impl
         if variant_config:
             expected_key = variant_config.get('expected_key', 'swhid')
             expected_swhid = expected.get(expected_key)
         else:
-            # Fallback: try 'swhid' first, then 'expected_swhid_sha256'
             expected_swhid = expected.get('swhid') or expected.get('expected_swhid_sha256')
         
-        results = test.get('results', [])
-        
-        result_map = {r['implementation']: r for r in results}
         
         html.append('<tr>')
         
         # Test name
         html.append(f'<td class="test-name">{escape(test_id)}</td>')
         
-        # Expected SWHID
-        expected_display = escape(expected_swhid) if expected_swhid else ''
+        # Expected SWHID - show both v1 and v2 when available (for test-both-versions)
+        expected_v1 = expected.get('swhid')
+        expected_v2 = expected.get('expected_swhid_sha256')
+        if expected_v1 and expected_v2:
+            expected_display = escape(f"v1: {expected_v1}\nv2: {expected_v2}")
+        elif expected_v1 or expected_v2:
+            expected_display = escape(expected_v1 or expected_v2 or '')
+        else:
+            expected_display = ''
         html.append(f'<td class="expected">{expected_display}</td>')
-        
-        # Results per implementation
+
+        # Results per implementation - use impl-specific expected (v1 for rust_v1, v2 for rust_v2)
         for impl in implementations:
             result = result_map.get(impl)
             if not result:
                 html.append('<td style="background-color: #f0f0f0;">N/A</td>')
             else:
-                status_label, color, content = determine_cell_status(result, expected_swhid)
+                impl_expected = (
+                    expected_v2 if impl.endswith('_v2') else expected_v1
+                ) or expected_swhid
+                status_label, color, content = determine_cell_status(result, impl_expected)
                 
                 # Build tooltip with full details
                 tooltip_parts = [f"Status: {status_label}"]
                 if result.get('swhid'):
                     tooltip_parts.append(f"SWHID: {result.get('swhid')}")
-                if expected_swhid:
-                    tooltip_parts.append(f"Expected: {expected_swhid}")
+                if impl_expected:
+                    tooltip_parts.append(f"Expected: {impl_expected}")
                 if result.get('error'):
                     error_summary = get_error_summary(result.get('error'))
                     tooltip_parts.append(f"Error: {error_summary}")

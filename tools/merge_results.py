@@ -74,7 +74,9 @@ def create_index_data(results_files: List[Dict[str, Any]]) -> Dict[str, Any]:
                 elif result["status"] == "SKIPPED":
                     skipped_count += 1
         
-        total_result_count = test_count * len(results["implementations"])
+        # Use actual result count; with --test-both-versions, tests can have
+        # multiple results per impl (v1 and v2), so test_count * impl_count is wrong
+        total_result_count = sum(len(test["results"]) for test in results["tests"])
         
         if total_result_count > 0:
             run_data["pass_rate"] = round(passed_count / total_result_count * 100, 2)
@@ -171,7 +173,7 @@ def create_index_data(results_files: List[Dict[str, Any]]) -> Dict[str, Any]:
                 stats["fail_rate"] = 0.0
                 stats["skip_rate"] = 0.0
     
-    total_results = total_tests * len(implementations) if implementations else 0
+    total_results = sum(run["total"] for run in runs)
     overall_fail_rate = round(total_failed / total_results * 100, 2) if total_results > 0 else 0
     overall_skip_rate = round(total_skipped / total_results * 100, 2) if total_results > 0 else 0
     
