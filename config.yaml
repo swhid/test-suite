@@ -107,50 +107,51 @@ payloads:
     expected_swhid: swh:1:dir:367667c0665514d6e9aacf236eca852ae92c0cf6
     name: entry_ordering
     path: payloads/directory/edge_cases/entry_ordering/
-    expected_swhid_sha256: swh:2:dir:82adc728758d57594b716d575e10758aa94a0a282a05c03006e1a33a45f85615
+    expected_swhid_sha256: swh:2:dir:ef3635807e9e5af2a4188298de95f4e1a2300295a7d7629ce07b803fe4d127d9
   - description: Directory with entries of files and subdir (tests ordering of subdir)
     expected_swhid: swh:1:dir:8a75e785dc497ca2fd150e8f32e13656eb3b6f88
     name: dir_ordering
     path: payloads/directory/edge_cases/dir_ordering/
+    expected_swhid_sha256: swh:2:dir:8488b95fe3587e0224e652fad205810531555542e8cc7e82ce2fc4d41481fc41
   - description: Directory with special characters in filenames (spaces, semicolons,
       percent signs)
     expected_swhid: swh:1:dir:09b68fff5b158f616bd76d5e82836dafc6b96aaf
     name: special_chars
     path: payloads/directory/edge_cases/special_chars/
-    expected_swhid_sha256: swh:2:dir:bef9c1db670f9ee378973ceb7890ef9c7fb59e86da37d0b9d7e87a3b01b5242c
+    expected_swhid_sha256: swh:2:dir:fbe5726704829cb41375d567ebdd1a0e313b2a045551b05ef77a0c47a8f2823d
   - description: Directory testing path= qualifier with percent-encoded vs literal
       slashes (file%2Fwith%2Fslash vs file/with/slash)
     expected_swhid: swh:1:dir:cfed4cb9781dbec4a5d0184bd2f671dc350137ca
     name: path_terminator
     path: payloads/directory/edge_cases/path_terminator/
-    expected_swhid_sha256: swh:2:dir:2fd0f61dcec74b4c3313ed94de2289886fa05f5347729b5250913c6db3ab69d1
+    expected_swhid_sha256: swh:2:dir:134a6aca679b1fc4107adb1237e4b020150510d328c257721ee85e4700d712ce
   - description: Directory testing path= qualifier with percent-encoded vs literal
       percent signs (file%25with%25percent vs file%with%percent)
     expected_swhid: swh:1:dir:e74c2821d3ed7d865d81068116994c209988dac2
     name: empty_paths
     path: payloads/directory/edge_cases/empty_paths/
-    expected_swhid_sha256: swh:2:dir:fafa6df6af8dcc7855a02943d7097187f28de8e7111540f876fcacf85a1a53b0
+    expected_swhid_sha256: swh:2:dir:e2f6aa942f021772f074a256b27468c791e9f2e5855aa4d9a76cbb46bd2871ce
   - description: Directory with comprehensive permission variations
     expected_swhid: swh:1:dir:32798ac33695bd283d6e650c61a40bc2dbda3a2e
     name: comprehensive_permissions
     path: payloads/directory/edge_cases/comprehensive_permissions/
-    expected_swhid_sha256: swh:2:dir:42ddd5a29409f434627457ae2cd6460d17c161aa02a7df7609ae9417ed11b016
+    expected_swhid_sha256: swh:2:dir:6986f3d18106aecd3d4e1171eb5e38f02c05a63239066a6d6e798a4338ade3a6
   - description: Directory with mixed types (files, subdirs, symlinks, executables)
     expected_swhid: swh:1:dir:6a805bfd6380e2e1e4412ac66933ebd244fb9d72
     name: mixed_types
     path: payloads/directory/edge_cases/mixed_types/
-    expected_swhid_sha256: swh:2:dir:c41d695c2be887347e58a7cf748fae790a387172b7365298f41f1902ecd8f8ce
+    expected_swhid_sha256: swh:2:dir:fad4b42e6c2b590c9a432a5976d37215cf291c76c77f11cf57d65733d3ce7db6
   - description: Directory with Unicode characters in filenames (Chinese, Cyrillic,
       Japanese, emoji)
     expected_swhid: swh:1:dir:ee7194e754e8a911d41b83a06c10a22b7266d1bd
     name: unicode_names
     path: payloads/directory/edge_cases/unicode_names/
-    expected_swhid_sha256: swh:2:dir:dbfc924111a1575680faca6d3702622987cf2c8ac4eb7af2f2a0d37a1f386fd9
+    expected_swhid_sha256: swh:2:dir:03ea1f801e73041096c6e699fa1f46913cc478973e5430079aa72efe21e25d7b
   - description: Directory with Unicode normalization test (NFC vs NFD filenames)
     expected_swhid: swh:1:dir:53d793e1a86c17e1c120e8cf1d9cec788a5c360f
     name: unicode_normalization
     path: payloads/directory/edge_cases/unicode_normalization/
-    expected_swhid_sha256: swh:2:dir:996e3bc4715f32b0bfb5f2f9f69cf57ddc60cc0243097ed6cad1a88ea51019dc
+    expected_swhid_sha256: swh:2:dir:4fd288829483b6f50c616f044a7bdb4375f4d6178a71650208efead7725761c1
   git:
   - description: Synthetic Git repo with main, feature, and a tag
     expected_swhid: swh:1:snp:d66db619f7d82b4bc6524810d045d731ae099ef7
