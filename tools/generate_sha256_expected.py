@@ -89,60 +89,51 @@ def generate_directory_sha256(payload_path: str, config_dir: str) -> Optional[st
     """Generate SHA256 SWHID for a directory object.
 
     The payload directory contents are placed at the repo root (not as a subdirectory),
-    matching Git tree semantics and the git-cmd implementation. This produces the
-    same tree hash as swhid-rs and other implementations that hash the directory
-    contents directly.
+    matching what swhid dir <path> hashes: the contents of the given directory.
     """
-    # Resolve absolute path
+    import shutil
+    import stat
+
     if not os.path.isabs(payload_path):
         abs_path = os.path.join(config_dir, payload_path)
     else:
         abs_path = payload_path
-    
+
     if not os.path.exists(abs_path) or not os.path.isdir(abs_path):
         return None
-    
-    import shutil
-    import stat
 
     with tempfile.TemporaryDirectory(prefix="swhid_sha256_") as temp_dir:
         setup_sha256_repo(temp_dir)
-        
-        # Copy payload contents to repo root (not as subdirectory).
-        # Use intermediate target then move to root, matching git-cmd implementation.
-        target_path = os.path.join(temp_dir, "target")
-        shutil.copytree(abs_path, target_path, symlinks=True)
-        for item in os.listdir(target_path):
-            src = os.path.join(target_path, item)
-            dst = os.path.join(temp_dir, item)
-            shutil.move(src, dst)
-        os.rmdir(target_path)
-        
-        # Add to Git
+
+        # Copy directory contents directly to temp repo root (not as a subdirectory).
+        shutil.copytree(abs_path, temp_dir, symlinks=True, dirs_exist_ok=True)
+
+        # Add all contents at repo root
         run_git_command(["git", "add", "."], cwd=temp_dir)
-        
-        # Apply executable bits from source (skip .git)
+
+        # Apply executable bits from source (Git may not preserve from copy)
         for root, dirs, files in os.walk(temp_dir):
-            if ".git" in root:
-                continue
+            if ".git" in dirs:
+                dirs.remove(".git")
             for file in files:
                 file_path = os.path.join(root, file)
                 rel_path = os.path.relpath(file_path, temp_dir)
                 source_path = os.path.join(abs_path, rel_path)
-                
-                if os.path.exists(source_path):
+                if os.path.exists(source_path) and os.path.isfile(source_path):
                     try:
                         source_stat = os.stat(source_path)
                         if source_stat.st_mode & stat.S_IEXEC:
                             git_rel_path = rel_path.replace("\\", "/")
-                            run_git_command(["git", "update-index", "--chmod=+x", git_rel_path], cwd=temp_dir)
+                            run_git_command(
+                                ["git", "update-index", "--chmod=+x", git_rel_path],
+                                cwd=temp_dir,
+                            )
                     except (OSError, subprocess.CalledProcessError):
                         pass
-        
-        # Get tree hash
+
         tree_hash = run_git_command(["git", "write-tree"], cwd=temp_dir)
         return f"swh:2:dir:{tree_hash}"
-    
+
     return None
 
 
