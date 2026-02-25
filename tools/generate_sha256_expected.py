@@ -3,19 +3,21 @@
 Generate expected SHA256 SWHID results from Git.
 
 This script iterates through all payloads in config.yaml (excluding snapshots)
-and generates expected_swhid_sha256 values by computing Git SHA256 object hashes.
+and generates expected_swhid_sha256 values.
 
-For each payload type:
-- Content: Creates SHA256 Git repo, adds file, gets blob hash
-- Directory: Creates SHA256 Git repo, adds directory, gets tree hash
-- Revision: Creates SHA256 Git repo with commits, gets commit hash
-- Release: Creates SHA256 Git repo with tags, gets tag hash
+- Content and directory: use a temporary Git repo with --object-format=sha256
+  so that blob/tree hashes are native SHA256.
 
-Output: Updated config.yaml with expected_swhid_sha256 fields.
+- Revision and release: the SHA256 hash of a commit (or tag) depends on the
+  SHA256 hashes of the objects it references (tree -> blobs, etc.). So we
+  convert the payload repo to Git's SHA256 object format via fast-export /
+  fast-import, then use git rev-parse to get the correct revision or release
+  SWHID.
 """
 
 import argparse
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -25,8 +27,8 @@ from pathlib import Path
 from typing import Dict, Any, Optional
 
 
-def run_git_command(cmd: list, cwd: str, timeout: int = 30, env: Optional[Dict[str, str]] = None) -> str:
-    """Run a git command and return stdout."""
+def run_git_command(cmd: list, cwd: str, timeout: int = 60, env: Optional[Dict[str, str]] = None) -> str:
+    """Run a git command and return stdout as string."""
     result = subprocess.run(
         cmd,
         cwd=cwd,
@@ -138,76 +140,188 @@ def generate_directory_sha256(payload_path: str, config_dir: str) -> Optional[st
 
 
 def generate_revision_sha256(payload_path: str, config_dir: str, commit: Optional[str] = None) -> Optional[str]:
-    """Generate SHA256 SWHID for a revision object."""
-    # Resolve absolute path
-    if not os.path.isabs(payload_path):
-        abs_path = os.path.join(config_dir, payload_path)
-    else:
-        abs_path = payload_path
-    
-    # Handle tarballs
-    if abs_path.endswith('.tar.gz'):
-        with tempfile.TemporaryDirectory(prefix="swhid_sha256_") as temp_dir:
-            with tarfile.open(abs_path, "r:gz") as tar:
-                tar.extractall(temp_dir)
-            extracted_items = os.listdir(temp_dir)
-            if len(extracted_items) == 1 and os.path.isdir(os.path.join(temp_dir, extracted_items[0])):
-                abs_path = os.path.join(temp_dir, extracted_items[0])
-            else:
-                abs_path = temp_dir
-    
-    if not os.path.exists(abs_path) or not os.path.isdir(abs_path):
-        return None
-    
-    # Check if it's a Git repo
-    git_dir = os.path.join(abs_path, ".git")
-    if not os.path.exists(git_dir):
-        # Not a Git repo - can't generate revision
-        return None
-    
-    # Get commit hash (use provided commit or HEAD)
-    try:
-        commit_ref = commit or "HEAD"
-        commit_hash = run_git_command(["git", "rev-parse", commit_ref], cwd=abs_path)
-        return f"swh:2:rev:{commit_hash}"
-    except subprocess.CalledProcessError:
-        return None
+    """
+    Generate SHA256 SWHID for a revision by converting the repo to Git's
+    SHA256 object format (so commit -> tree -> blob hashes are all SHA256)
+    and then reading the commit hash.
+    """
+    with tempfile.TemporaryDirectory(prefix="swhid_sha256_") as top:
+        repo_path = _resolve_repo_path(payload_path, config_dir, extract_dir=top)
+        if repo_path is None:
+            return None
+
+        commit_ref = commit if commit else "HEAD"
+        export_ref = "refs/temp/rev-export"
+
+        copy_path = os.path.join(top, "source")
+        try:
+            shutil.copytree(repo_path, copy_path)
+        except OSError:
+            return None
+
+        try:
+            run_git_command(
+                ["git", "update-ref", export_ref, commit_ref],
+                cwd=copy_path,
+                timeout=30,
+            )
+        except subprocess.CalledProcessError:
+            return None
+
+        sha256_path = os.path.join(top, "sha256")
+        os.makedirs(sha256_path, exist_ok=True)
+        setup_sha256_repo(sha256_path)
+
+        try:
+            _run_fast_export_import(copy_path, sha256_path, [export_ref])
+        except subprocess.CalledProcessError:
+            return None
+
+        try:
+            rev_sha256 = run_git_command(
+                ["git", "rev-parse", export_ref],
+                cwd=sha256_path,
+                timeout=10,
+            )
+        except subprocess.CalledProcessError:
+            return None
+
+        if len(rev_sha256) != 64:
+            return None
+        return f"swh:2:rev:{rev_sha256}"
 
 
 def generate_release_sha256(payload_path: str, config_dir: str, tag: str) -> Optional[str]:
-    """Generate SHA256 SWHID for a release object."""
-    # Resolve absolute path
+    """
+    Generate SHA256 SWHID for a release by converting the repo to Git's
+    SHA256 object format and then reading the tag object hash.
+    """
+    with tempfile.TemporaryDirectory(prefix="swhid_sha256_") as top:
+        repo_path = _resolve_repo_path(payload_path, config_dir, extract_dir=top)
+        if repo_path is None:
+            return None
+
+        tag_ref = f"refs/tags/{tag}"
+
+        copy_path = os.path.join(top, "source")
+        try:
+            shutil.copytree(repo_path, copy_path)
+        except OSError:
+            return None
+
+        try:
+            obj_type = run_git_command(
+                ["git", "cat-file", "-t", tag],
+                cwd=copy_path,
+                timeout=10,
+            )
+        except subprocess.CalledProcessError:
+            return None
+        if obj_type != "tag":
+            return None
+
+        sha256_path = os.path.join(top, "sha256")
+        os.makedirs(sha256_path, exist_ok=True)
+        setup_sha256_repo(sha256_path)
+
+        try:
+            _run_fast_export_import(
+                copy_path,
+                sha256_path,
+                [tag_ref],
+                extra_export_args=["--signed-tags=verbatim"],
+            )
+        except subprocess.CalledProcessError:
+            try:
+                _run_fast_export_import(
+                    copy_path,
+                    sha256_path,
+                    [tag_ref],
+                    extra_export_args=["--signed-tags=strip"],
+                )
+            except subprocess.CalledProcessError:
+                return None
+
+        try:
+            tag_sha256 = run_git_command(
+                ["git", "rev-parse", tag_ref],
+                cwd=sha256_path,
+                timeout=10,
+            )
+        except subprocess.CalledProcessError:
+            return None
+
+        if len(tag_sha256) != 64:
+            return None
+        return f"swh:2:rel:{tag_sha256}"
+
+
+def _resolve_repo_path(
+    payload_path: str,
+    config_dir: str,
+    extract_dir: Optional[str] = None,
+) -> Optional[str]:
+    """
+    Resolve payload path to an absolute repo directory.
+    For tarballs, extract into extract_dir (must be provided so the dir stays valid).
+    """
     if not os.path.isabs(payload_path):
         abs_path = os.path.join(config_dir, payload_path)
     else:
         abs_path = payload_path
-    
-    # Handle tarballs
-    if abs_path.endswith('.tar.gz'):
-        with tempfile.TemporaryDirectory(prefix="swhid_sha256_") as temp_dir:
+
+    if abs_path.endswith(".tar.gz"):
+        if not os.path.exists(abs_path) or not os.path.isfile(abs_path):
+            return None
+        if extract_dir is None or not os.path.isdir(extract_dir):
+            return None
+        try:
             with tarfile.open(abs_path, "r:gz") as tar:
-                tar.extractall(temp_dir)
-            extracted_items = os.listdir(temp_dir)
-            if len(extracted_items) == 1 and os.path.isdir(os.path.join(temp_dir, extracted_items[0])):
-                abs_path = os.path.join(temp_dir, extracted_items[0])
-            else:
-                abs_path = temp_dir
-    
+                tar.extractall(extract_dir, filter="data")
+        except Exception:
+            return None
+        items = os.listdir(extract_dir)
+        if len(items) == 1 and os.path.isdir(os.path.join(extract_dir, items[0])):
+            repo_path = os.path.join(extract_dir, items[0])
+        else:
+            repo_path = extract_dir
+        if not os.path.isdir(os.path.join(repo_path, ".git")):
+            return None
+        return repo_path
+
     if not os.path.exists(abs_path) or not os.path.isdir(abs_path):
         return None
-    
-    # Check if it's a Git repo
-    git_dir = os.path.join(abs_path, ".git")
-    if not os.path.exists(git_dir):
-        # Not a Git repo - can't generate release
+    if not os.path.isdir(os.path.join(abs_path, ".git")):
         return None
-    
-    # Get tag object hash (use ^{} to get tag object, not commit)
-    try:
-        tag_hash = run_git_command(["git", "rev-parse", f"{tag}^{{}}"], cwd=abs_path)
-        return f"swh:2:rel:{tag_hash}"
-    except subprocess.CalledProcessError:
-        return None
+    return abs_path
+
+
+def _run_fast_export_import(
+    source_repo: str,
+    dest_repo: str,
+    refs: list,
+    extra_export_args: Optional[list] = None,
+    timeout: int = 120,
+) -> None:
+    """Run git fast-export from source_repo for the given refs, pipe into fast-import in dest_repo."""
+    export_args = ["git", "fast-export"] + (extra_export_args or []) + refs
+    export_proc = subprocess.Popen(
+        export_args,
+        cwd=source_repo,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    import_proc = subprocess.run(
+        ["git", "fast-import"],
+        cwd=dest_repo,
+        stdin=export_proc.stdout,
+        capture_output=True,
+        timeout=timeout,
+        check=True,
+    )
+    export_proc.wait(timeout=5)
+    if export_proc.returncode != 0:
+        raise subprocess.CalledProcessError(export_proc.returncode or 1, export_args)
 
 
 def process_payload(payload: Dict[str, Any], category: str, config_dir: str) -> Optional[str]:

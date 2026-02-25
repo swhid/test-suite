@@ -275,50 +275,60 @@ payloads:
     name: simple_revisions_head
     path: payloads/git-repository/simple_revisions.tar.gz
     expected_swhid: swh:1:rev:b7fdd35912b16682ac6e989f75d41870a0f9d904
+    expected_swhid_sha256: swh:2:rev:39f389419c331aed831d9ec3bfbe579c43a1797da9657593044a80ac663dd2b3
   - description: Revision from simple_revisions repo (first commit, de1d62e)
     name: simple_revisions_first
     path: payloads/git-repository/simple_revisions.tar.gz
     commit: de1d62e
     expected_swhid: swh:1:rev:de1d62e55c7561f961a70ca57f1da6b3cf16fdb7
+    expected_swhid_sha256: swh:2:rev:cf37e2a69019225827ab62874dd612fbbe702fb9240871b9b1a5c3797d7b9b82
   - description: Revision from simple_revisions repo (second commit, b7fdd35)
     name: simple_revisions_second
     path: payloads/git-repository/simple_revisions.tar.gz
     commit: b7fdd35
     expected_swhid: swh:1:rev:b7fdd35912b16682ac6e989f75d41870a0f9d904
+    expected_swhid_sha256: swh:2:rev:39f389419c331aed831d9ec3bfbe579c43a1797da9657593044a80ac663dd2b3
   - description: Revision from merge_commits repo (merge commit)
     name: merge_commits_head
     path: payloads/git-repository/merge_commits.tar.gz
     commit: b644fc7
     expected_swhid: swh:1:rev:b644fc71fa76537858cb421f5bc6fd2f0f475d88
+    expected_swhid_sha256: swh:2:rev:e8aae6674be44e7cc053c574ad6b69d2622d2c8ba2fa43f085c6209bc1850a29
   - description: Revision from signed_revisions repo (signed commit on main branch)
     name: signed_revision_main
     path: payloads/git-repository/signed_revisions.tar.gz
     expected_swhid: swh:1:rev:8a1241cc9d81178d7c1c29201354b2cb309601fe
+    expected_swhid_sha256: swh:2:rev:b51ecde97406aebceca175fb142d7c7a8d8365e858d0cf57eca7d83a2d87fde6
   - description: Revision from signed_revisions repo (signed commit on feature branch)
     name: signed_revision_feature
     path: payloads/git-repository/signed_revisions.tar.gz
     commit: signed-feature
     expected_swhid: swh:1:rev:8a1241cc9d81178d7c1c29201354b2cb309601fe
+    expected_swhid_sha256: swh:2:rev:b51ecde97406aebceca175fb142d7c7a8d8365e858d0cf57eca7d83a2d87fde6
   - description: Revision from comprehensive repo (feature-a branch)
     name: comprehensive_branch_feature-a
     path: payloads/git-repository/comprehensive.tar.gz
     commit: feature-a
     expected_swhid: swh:1:rev:870dcb724e95453ab9dd2f4a58f98aeb0dcb7764
+    expected_swhid_sha256: swh:2:rev:be92c18a69f4061c1af3edcd55b1d65c2963db763cffd4129238a3f6ae9952ad
   - description: Revision from comprehensive repo (feature-b branch)
     name: comprehensive_branch_feature-b
     path: payloads/git-repository/comprehensive.tar.gz
     commit: feature-b
     expected_swhid: swh:1:rev:229740cdc7665b5718e34e04a59fd9e981f2c149
+    expected_swhid_sha256: swh:2:rev:30ab3f05fe4b048aa1d4b7b2cab384c1ba83b101ea25731aa015cf6c35362428
   - description: Revision from comprehensive repo (hotfix branch)
     name: comprehensive_branch_hotfix
     path: payloads/git-repository/comprehensive.tar.gz
     commit: hotfix
     expected_swhid: swh:1:rev:bfe454d11532e851d36ac5c2c014f12a19c9f720
+    expected_swhid_sha256: swh:2:rev:31f042943bb64a93323c18f5afd5a5f6d8c8cf8e70d07a14c78c361bc80db32b
   - description: Revision from comprehensive repo (main branch)
     name: comprehensive_branch_main
     path: payloads/git-repository/comprehensive.tar.gz
     commit: main
     expected_swhid: swh:1:rev:997cc01b55bd38cbcc49f113c9f796e528559adf
+    expected_swhid_sha256: swh:2:rev:b511eaf5a579cc893da0464c4a555adfaa15bdf65dc337e5a140c80261b30bf4
   release:
   - description: Release from annotated tag v1.0
     name: annotated_release_v1
@@ -350,31 +360,37 @@ payloads:
     path: payloads/git-repository/tag_types.tar.gz
     tag: v1.0
     expected_swhid: swh:1:rel:302822701a46791d97f5e372255b7db078a342e2
+    expected_swhid_sha256: swh:2:rel:2aebb765fa34bae3b2cf2acd74ced472baa4a962da2f960ef9bcd5aa0b0519e1
   - description: Release from comprehensive repo (v1.0.0 tag)
     name: comprehensive_tag_v1.0.0
     path: payloads/git-repository/comprehensive.tar.gz
     tag: v1.0.0
     expected_swhid: swh:1:rel:5286f13487f495993f96ae05b33d10f5f93b82f4
+    expected_swhid_sha256: swh:2:rel:fc5f81a1411b41556c6558845c5fe48efbe70f4a0a7dd6bd5a8b3c72a6228786
   - description: Release from comprehensive repo (v1.0.1 tag)
     name: comprehensive_tag_v1.0.1
     path: payloads/git-repository/comprehensive.tar.gz
     tag: v1.0.1
     expected_swhid: swh:1:rel:bce2af7aab2b64d3198976a83cefffcd6f5b8f54
+    expected_swhid_sha256: swh:2:rel:b7c9b8486f02e73cfc55a6aef25b8f1f95772a9b988f9f729184137b28762c56
   - description: Release from comprehensive repo (v1.1.0 tag)
     name: comprehensive_tag_v1.1.0
     path: payloads/git-repository/comprehensive.tar.gz
     tag: v1.1.0
     expected_swhid: swh:1:rel:00f5b371d166cff902716f88c59e97eb21d18a7a
+    expected_swhid_sha256: swh:2:rel:a6423cd273e7af6554423736f950e831969e2f39c725dde857cb30222105c2ca
   - description: Release from comprehensive repo (v2.0.0 tag)
     name: comprehensive_tag_v2.0.0
     path: payloads/git-repository/comprehensive.tar.gz
     tag: v2.0.0
     expected_swhid: swh:1:rel:eb40be8808a4c33f3d3daab634344b673996a49f
+    expected_swhid_sha256: swh:2:rel:f0fbfaaa8972a49fce82dfc62c1d97592cf2c62faca5adb1e0c0e227655d6068
   - description: Release from comprehensive repo (v2.1.0 tag)
     name: comprehensive_tag_v2.1.0
     path: payloads/git-repository/comprehensive.tar.gz
     tag: v2.1.0
     expected_swhid: swh:1:rel:edaf91f706742fcb19591f59b5397b0a7a09ac39
+    expected_swhid_sha256: swh:2:rel:b071c1d398f3d7fb9c3fce176b4993a4f38f897b42db2bc9bdbda5e09ad97216
 settings:
   cleanup_temp: true
   max_file_size: 100MB

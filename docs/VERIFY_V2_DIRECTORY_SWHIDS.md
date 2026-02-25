@@ -68,6 +68,4 @@ The Software Heritage archive API can verify content SWHIDs (v1, SHA1). For v2/S
 
 ## Known Issues
 
-1. **generate_sha256_expected.py directory logic**: The script copies the payload as a subdirectory. For correct results, it should copy the payload *contents* to the repo root (like `git-cmd` does).
-
-2. **swhid-rs DiskDirectoryBuilder**: When computing v2 directory SWHIDs, the builder uses SHA1 internally for child object IDs (blobs, nested trees). The Git tree format for SHA256 expects 32-byte child IDs; using 20-byte SHA1 IDs produces incorrect hashes. A fix would require `DiskDirectoryBuilder` to accept a `HashConfig` and use it when building the tree.
+None. Both `generate_sha256_expected.py` and `swhid-rs` correctly place payload contents at the repo root and use the configured hash (SHA256) for all child object IDs when computing v2 directory SWHIDs.
