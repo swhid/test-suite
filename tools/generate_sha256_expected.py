@@ -296,9 +296,13 @@ def _resolve_repo_path(
 
     if not os.path.exists(abs_path) or not os.path.isdir(abs_path):
         return None
-    if not os.path.isdir(os.path.join(abs_path, ".git")):
-        return None
-    return abs_path
+    # Standard (non-bare) repo: has .git directory
+    if os.path.isdir(os.path.join(abs_path, ".git")):
+        return abs_path
+    # Bare repo: HEAD and objects at top level
+    if os.path.isfile(os.path.join(abs_path, "HEAD")) and os.path.isdir(os.path.join(abs_path, "objects")):
+        return abs_path
+    return None
 
 
 def _run_fast_export_import(
@@ -414,9 +418,14 @@ def main():
                 sha256_swhid = process_payload(payload, category, config_dir)
                 
                 if sha256_swhid:
-                    payload["expected_swhid_sha256"] = sha256_swhid
-                    updated_count += 1
-                    print(f"✓ {sha256_swhid}")
+                    # Only set when missing so we don't overwrite Rust-provided values (e.g. signed commits)
+                    if payload.get("expected_swhid_sha256") is None:
+                        payload["expected_swhid_sha256"] = sha256_swhid
+                        updated_count += 1
+                        print(f"✓ {sha256_swhid}")
+                    else:
+                        skipped_count += 1
+                        print("⊘ already set (kept)")
                 else:
                     skipped_count += 1
                     print("⊘ skipped (not supported or not found)")

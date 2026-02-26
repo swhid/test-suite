@@ -261,16 +261,19 @@ payloads:
     name: simple_revision
     path: payloads/git/merge_commits/
     expected_swhid: swh:1:rev:395d056259d91ef412349c5f6bc8273724e82d4b
+    expected_swhid_sha256: swh:2:rev:3ef41f06d867417af32690b178be0a11e7cdc80b944644b0f874c12fb9339d2e
   - description: Revision from merge commit (commit with 2+ parents)
     name: merge_revision
     path: payloads/git/merge_commits/
     commit: 395d056
     expected_swhid: swh:1:rev:395d056259d91ef412349c5f6bc8273724e82d4b
+    expected_swhid_sha256: swh:2:rev:3ef41f06d867417af32690b178be0a11e7cdc80b944644b0f874c12fb9339d2e
   - description: Revision from initial commit
     name: initial_revision
     path: payloads/git/merge_commits/
     commit: d8693ad
     expected_swhid: swh:1:rev:d8693ad0daffe017605f67d723b66e0c213035cb
+    expected_swhid_sha256: swh:2:rev:1fb7e07aafd2e63bb17a5b4ff3e5ee2f9f94b089e04570ca9d3bc52a7ead7323
   - description: Revision from simple_revisions repo (HEAD)
     name: simple_revisions_head
     path: payloads/git-repository/simple_revisions.tar.gz
@@ -298,14 +301,12 @@ payloads:
     name: signed_revision_main
     path: payloads/git-repository/signed_revisions.tar.gz
     expected_swhid: swh:1:rev:8a1241cc9d81178d7c1c29201354b2cb309601fe
-    # SHA256 from Rust impl; fast-export/fast-import re-serializes gpgsig differently
     expected_swhid_sha256: swh:2:rev:26be30e69cec790ad80df1486c709230b18670f1ca573b6dc61be9c8697225f3
   - description: Revision from signed_revisions repo (signed commit on feature branch)
     name: signed_revision_feature
     path: payloads/git-repository/signed_revisions.tar.gz
     commit: signed-feature
     expected_swhid: swh:1:rev:8a1241cc9d81178d7c1c29201354b2cb309601fe
-    # Same commit as main; SHA256 from Rust impl (signed-commit serialization)
     expected_swhid_sha256: swh:2:rev:26be30e69cec790ad80df1486c709230b18670f1ca573b6dc61be9c8697225f3
   - description: Revision from comprehensive repo (feature-a branch)
     name: comprehensive_branch_feature-a
@@ -337,11 +338,13 @@ payloads:
     path: payloads/git/with_tags/
     tag: v1.0
     expected_swhid: swh:1:rel:976993709ac2245f5128a5205653b26eab703fe1
+    expected_swhid_sha256: swh:2:rel:a0975e97ce4a44b9ebacae96a1c29bd540795a3e3d0f139271c79f89816a3220
   - description: Release from annotated tag v2.0
     name: annotated_release_v2
     path: payloads/git/with_tags/
     tag: v2.0
     expected_swhid: swh:1:rel:a7c9921fab18efe11882532bdf751f44a704917a
+    expected_swhid_sha256: swh:2:rel:df586c70b4508d7ddb09ed154ca543086b2b143295caece2c0d3cf10661e9df6
   - description: Release from signed_releases repo (signed tag v1.0.0)
     name: signed_release_v1
     path: payloads/git-repository/signed_releases.tar.gz
