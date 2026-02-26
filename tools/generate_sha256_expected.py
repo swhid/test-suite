@@ -13,6 +13,11 @@ and generates expected_swhid_sha256 values.
   convert the payload repo to Git's SHA256 object format via fast-export /
   fast-import, then use git rev-parse to get the correct revision or release
   SWHID.
+
+  Exception: for GPG-signed commits, fast-export/fast-import may re-serialize
+  the commit (e.g. gpgsig header folding) so the resulting SHA256 differs from
+  implementations that hash the commit as stored. The signed_revision_* tests
+  therefore use expected_swhid_sha256 from the Rust implementation.
 """
 
 import argparse
