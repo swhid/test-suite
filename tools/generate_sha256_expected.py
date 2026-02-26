@@ -17,7 +17,9 @@ and generates expected_swhid_sha256 values.
   Exception: for GPG-signed commits, fast-export/fast-import may re-serialize
   the commit (e.g. gpgsig header folding) so the resulting SHA256 differs from
   implementations that hash the commit as stored. The signed_revision_* tests
-  therefore use expected_swhid_sha256 from the Rust implementation.
+  therefore use expected_swhid_sha256 from the Rust implementation. The
+  signed_revisions discovery payload (discover_branches) uses the same
+  implementation-derived expected_sha256 and is skipped by this script.
 """
 
 import argparse
@@ -468,18 +470,23 @@ def main():
                     skipped_count += 1
                     print("⊘ skipped (not supported or not found)")
                 # Discovery payloads: fill expected_sha256 for branches/tags from Git
+                # Skip signed_revisions: GPG-signed commits get wrong hash from fast-export/import
                 if (payload.get("discover_branches") or payload.get("discover_tags")) and payload.get("expected"):
-                    try:
-                        discovery_result = process_discovery_payload(payload, config_dir)
-                        if discovery_result and (discovery_result.get("branches") or discovery_result.get("tags")):
-                            payload["expected_sha256"] = discovery_result
-                            updated_count += 1
-                            n_b = len(discovery_result.get("branches", {}))
-                            n_t = len(discovery_result.get("tags", {}))
-                            print(f"  + expected_sha256: {n_b} branches, {n_t} tags")
-                    except Exception as e:
-                        error_count += 1
-                        print(f"  ✗ discovery error: {e}")
+                    if payload.get("name") == "signed_revisions":
+                        skipped_count += 1
+                        print("  ⊘ expected_sha256 skipped (GPG-signed commits, use impl-derived values)")
+                    else:
+                        try:
+                            discovery_result = process_discovery_payload(payload, config_dir)
+                            if discovery_result and (discovery_result.get("branches") or discovery_result.get("tags")):
+                                payload["expected_sha256"] = discovery_result
+                                updated_count += 1
+                                n_b = len(discovery_result.get("branches", {}))
+                                n_t = len(discovery_result.get("tags", {}))
+                                print(f"  + expected_sha256: {n_b} branches, {n_t} tags")
+                        except Exception as e:
+                            error_count += 1
+                            print(f"  ✗ discovery error: {e}")
             except Exception as e:
                 error_count += 1
                 print(f"✗ error: {e}")

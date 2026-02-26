@@ -266,8 +266,8 @@ payloads:
         signed-feature: swh:1:rev:8a1241cc9d81178d7c1c29201354b2cb309601fe
     expected_sha256:
       branches:
-        main: swh:2:rev:b51ecde97406aebceca175fb142d7c7a8d8365e858d0cf57eca7d83a2d87fde6
-        signed-feature: swh:2:rev:b51ecde97406aebceca175fb142d7c7a8d8365e858d0cf57eca7d83a2d87fde6
+        main: swh:2:rev:26be30e69cec790ad80df1486c709230b18670f1ca573b6dc61be9c8697225f3
+        signed-feature: swh:2:rev:26be30e69cec790ad80df1486c709230b18670f1ca573b6dc61be9c8697225f3
       tags: {}
   - description: Git repo with signed tags (GPG-signed releases) - tests release SWHID
       computation for signed tags
