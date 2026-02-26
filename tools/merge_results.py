@@ -12,7 +12,7 @@ import json
 import argparse
 import os
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Dict, Any
 
 def load_canonical_results(file_path: str) -> Dict[str, Any]:
@@ -181,7 +181,7 @@ def create_index_data(results_files: List[Dict[str, Any]]) -> Dict[str, Any]:
     overall_skip_rate = round(total_skipped / total_results * 100, 2) if total_results > 0 else 0
     
     return {
-        "last_updated": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "last_updated": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "total_runs": len(runs),
         "total_tests": total_tests,
         "total_results": total_results,
@@ -201,6 +201,7 @@ def main():
     parser = argparse.ArgumentParser(description="Merge canonical results into dashboard layout")
     parser.add_argument("results_files", nargs="+", help="Canonical results JSON files")
     parser.add_argument("--site", default="site", help="Site directory")
+    parser.add_argument("--debug", action="store_true", help="Print per-file and final totals for diagnosis")
     
     args = parser.parse_args()
     
@@ -208,7 +209,28 @@ def main():
     results_files = []
     for file_path in args.results_files:
         if os.path.exists(file_path):
-            results_files.append(load_canonical_results(file_path))
+            results = load_canonical_results(file_path)
+            results_files.append(results)
+            if args.debug:
+                test_count = len(results.get("tests", []))
+                total_result_count = sum(len(t.get("results", [])) for t in results.get("tests", []))
+                passed_count = failed_count = skipped_count = 0
+                for test in results.get("tests", []):
+                    for r in test.get("results", []):
+                        s = r.get("status", "")
+                        if s == "PASS":
+                            passed_count += 1
+                        elif s == "FAIL":
+                            failed_count += 1
+                        elif s == "SKIPPED":
+                            skipped_count += 1
+                print(f"[debug] {file_path}: tests={test_count} result_rows={total_result_count} passed={passed_count} failed={failed_count} skipped={skipped_count}")
+                if results.get("tests"):
+                    first = results["tests"][0]
+                    print(f"[debug]   first test id={first.get('id')} results={len(first.get('results', []))}")
+                    for r in first.get("results", [])[:5]:
+                        swhid = (r.get("swhid") or "")[:50]
+                        print(f"[debug]     {r.get('implementation')} {r.get('status')} {swhid}")
         else:
             print(f"Warning: File not found: {file_path}")
     
@@ -234,6 +256,9 @@ def main():
     
     # Create and write index.json
     index_data = create_index_data(results_files)
+    if args.debug:
+        print(f"[debug] index totals: total_tests={index_data['total_tests']} total_passed={index_data['total_passed']} total_failed={index_data['total_failed']} total_skipped={index_data['total_skipped']} total_results={index_data.get('total_results', 0)}")
+        print(f"[debug] implementations={index_data.get('implementations', [])}")
     index_file = data_dir / "index.json"
     with open(index_file, 'w') as f:
         json.dump(index_data, f, indent=2)
