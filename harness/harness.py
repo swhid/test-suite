@@ -185,9 +185,31 @@ class SwhidHarness:
                             except Exception as e:
                                 logger.error(f"Error running test for {impl.get_info().name}: {e}")
                     
+                    # When no v2 expected for this branch, emit explicit SKIPPED for v2 so dashboard shows correct skip count
+                    expected_swhid_sha256 = expected_sha256_branches.get(branch)
+                    if expected_swhid_sha256 is None:
+                        for impl_name, impl in self.implementations.items():
+                            v2_key = f"{impl_name}_v2"
+                            if v2_key not in results:
+                                results[v2_key] = SwhidTestResult(
+                                    payload_name=test_name,
+                                    payload_path=actual_repo_path,
+                                    implementation=v2_key,
+                                    success=False,
+                                    swhid=None,
+                                    error="Skipped: no expected v2 value (expected_swhid_sha256 missing)",
+                                    duration=0.0,
+                                    metrics=TestMetrics(
+                                        wall_ms_median=0.0,
+                                        wall_ms_mad=0.0,
+                                        cpu_ms_median=0.0,
+                                        max_rss_kb=0
+                                    ),
+                                    version=2
+                                )
+                    
                     # Compare results (with optional expected v1/v2 for discovered tests)
                     expected_swhid = expected_branches.get(branch)
-                    expected_swhid_sha256 = expected_sha256_branches.get(branch)
                     comparison = self._compare_results(test_name, actual_repo_path, results, expected_swhid=expected_swhid, expected_swhid_sha256=expected_swhid_sha256)
                     all_results.append(comparison)
                     
@@ -276,9 +298,31 @@ class SwhidHarness:
                             except Exception as e:
                                 logger.error(f"Error running test for {impl.get_info().name}: {e}")
                     
+                    # When no v2 expected for this tag, emit explicit SKIPPED for v2 so dashboard shows correct skip count
+                    expected_swhid_sha256 = expected_sha256_tags.get(tag)
+                    if expected_swhid_sha256 is None:
+                        for impl_name, impl in self.implementations.items():
+                            v2_key = f"{impl_name}_v2"
+                            if v2_key not in results:
+                                results[v2_key] = SwhidTestResult(
+                                    payload_name=test_name,
+                                    payload_path=actual_repo_path,
+                                    implementation=v2_key,
+                                    success=False,
+                                    swhid=None,
+                                    error="Skipped: no expected v2 value (expected_swhid_sha256 missing)",
+                                    duration=0.0,
+                                    metrics=TestMetrics(
+                                        wall_ms_median=0.0,
+                                        wall_ms_mad=0.0,
+                                        cpu_ms_median=0.0,
+                                        max_rss_kb=0
+                                    ),
+                                    version=2
+                                )
+                    
                     # Compare results (with optional expected v1/v2 for discovered tests)
                     expected_swhid = expected_tags.get(tag)
-                    expected_swhid_sha256 = expected_sha256_tags.get(tag)
                     comparison = self._compare_results(test_name, actual_repo_path, results, expected_swhid=expected_swhid, expected_swhid_sha256=expected_swhid_sha256)
                     all_results.append(comparison)
                     
@@ -576,6 +620,28 @@ class SwhidHarness:
                             results[result_key] = result
                         except Exception as e:
                             logger.error(f"Error running test for {impl.get_info().name} (v{test_version}): {e}")
+                
+                # When only v1 was run, emit explicit SKIPPED for v2 so dashboard shows correct skip count
+                if test_versions == [1]:
+                    for impl_name, impl in self.implementations.items():
+                        v2_key = f"{impl_name}_v2"
+                        if v2_key not in results:
+                            results[v2_key] = SwhidTestResult(
+                                payload_name=payload_name,
+                                payload_path=payload_path,
+                                implementation=v2_key,
+                                success=False,
+                                swhid=None,
+                                error="Skipped: no expected v2 value (expected_swhid_sha256 missing)",
+                                duration=0.0,
+                                metrics=TestMetrics(
+                                    wall_ms_median=0.0,
+                                    wall_ms_mad=0.0,
+                                    cpu_ms_median=0.0,
+                                    max_rss_kb=0
+                                ),
+                                version=2
+                            )
                 
                 # Compare results
                 expected_error = payload.expected_error

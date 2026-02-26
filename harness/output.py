@@ -191,6 +191,8 @@ class OutputGenerator:
             error_str = str(test_result.error)
             is_skipped = (
                 "Payload file not found" in error_str or 
+                "no expected v2 value" in error_str or
+                "expected_swhid_sha256 missing" in error_str or
                 "not supported by implementation" in error_str or
                 "Object type not supported" in error_str or
                 any(phrase in error_str.lower() for phrase in [
@@ -204,6 +206,13 @@ class OutputGenerator:
                     error = ErrorInfo(
                         code="IO_ERROR",
                         subtype="file_not_found",
+                        message=error_str,
+                        context={}
+                    )
+                elif "no expected v2" in error_str or "expected_swhid_sha256 missing" in error_str:
+                    error = ErrorInfo(
+                        code="VALIDATION_ERROR",
+                        subtype="missing_expected",
                         message=error_str,
                         context={}
                     )
