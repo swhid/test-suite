@@ -242,6 +242,19 @@ payloads:
         v1.1.0: swh:1:rel:00f5b371d166cff902716f88c59e97eb21d18a7a
         v2.0.0: swh:1:rel:eb40be8808a4c33f3d3daab634344b673996a49f
         v2.1.0: swh:1:rel:edaf91f706742fcb19591f59b5397b0a7a09ac39
+    expected_sha256:
+      branches:
+        develop: swh:2:rev:ce9977aecc562d66a1788ceea6085d1a9fdfe0e6ec624b55bfee5d37c8ed3d2e
+        feature-a: swh:2:rev:be92c18a69f4061c1af3edcd55b1d65c2963db763cffd4129238a3f6ae9952ad
+        feature-b: swh:2:rev:30ab3f05fe4b048aa1d4b7b2cab384c1ba83b101ea25731aa015cf6c35362428
+        hotfix: swh:2:rev:31f042943bb64a93323c18f5afd5a5f6d8c8cf8e70d07a14c78c361bc80db32b
+        main: swh:2:rev:b511eaf5a579cc893da0464c4a555adfaa15bdf65dc337e5a140c80261b30bf4
+      tags:
+        v1.0.0: swh:2:rel:fc5f81a1411b41556c6558845c5fe48efbe70f4a0a7dd6bd5a8b3c72a6228786
+        v1.0.1: swh:2:rel:b7c9b8486f02e73cfc55a6aef25b8f1f95772a9b988f9f729184137b28762c56
+        v1.1.0: swh:2:rel:a6423cd273e7af6554423736f950e831969e2f39c725dde857cb30222105c2ca
+        v2.0.0: swh:2:rel:f0fbfaaa8972a49fce82dfc62c1d97592cf2c62faca5adb1e0c0e227655d6068
+        v2.1.0: swh:2:rel:b071c1d398f3d7fb9c3fce176b4993a4f38f897b42db2bc9bdbda5e09ad97216
   - description: Git repo with signed commits (GPG-signed revisions) - tests revision
       SWHID computation for signed commits - auto-discovers all branches
     name: signed_revisions
@@ -251,6 +264,11 @@ payloads:
       branches:
         main: swh:1:rev:8a1241cc9d81178d7c1c29201354b2cb309601fe
         signed-feature: swh:1:rev:8a1241cc9d81178d7c1c29201354b2cb309601fe
+    expected_sha256:
+      branches:
+        main: swh:2:rev:b51ecde97406aebceca175fb142d7c7a8d8365e858d0cf57eca7d83a2d87fde6
+        signed-feature: swh:2:rev:b51ecde97406aebceca175fb142d7c7a8d8365e858d0cf57eca7d83a2d87fde6
+      tags: {}
   - description: Git repo with signed tags (GPG-signed releases) - tests release SWHID
       computation for signed tags
     name: signed_releases
