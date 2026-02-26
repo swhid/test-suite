@@ -140,12 +140,16 @@ class SwhidHarness:
     
     def _discover_git_tests(self, repo_path: str, base_name: str, 
                             discover_branches: bool, discover_tags: bool,
-                            expected_config: Optional[Dict[str, Any]] = None) -> List[ComparisonResult]:
+                            expected_config: Optional[Dict[str, Any]] = None,
+                            expected_sha256_config: Optional[Dict[str, Dict[str, str]]] = None) -> List[ComparisonResult]:
         """Discover and test all branches and/or annotated tags in a Git repository."""
         all_results = []
         expected_config = expected_config or {}
         expected_branches = expected_config.get("branches", {}) or {}
         expected_tags = expected_config.get("tags", {}) or {}
+        expected_sha256_config = expected_sha256_config or {}
+        expected_sha256_branches = expected_sha256_config.get("branches", {}) or {}
+        expected_sha256_tags = expected_sha256_config.get("tags", {}) or {}
         
         # Extract tarball if needed
         config_dir = os.path.dirname(os.path.abspath(self.config_path))
@@ -181,9 +185,10 @@ class SwhidHarness:
                             except Exception as e:
                                 logger.error(f"Error running test for {impl.get_info().name}: {e}")
                     
-                    # Compare results (no expected SWHID for discovered tests)
+                    # Compare results (with optional expected v1/v2 for discovered tests)
                     expected_swhid = expected_branches.get(branch)
-                    comparison = self._compare_results(test_name, actual_repo_path, results, expected_swhid=expected_swhid, expected_swhid_sha256=None)
+                    expected_swhid_sha256 = expected_sha256_branches.get(branch)
+                    comparison = self._compare_results(test_name, actual_repo_path, results, expected_swhid=expected_swhid, expected_swhid_sha256=expected_swhid_sha256)
                     all_results.append(comparison)
                     
                     # Log results similar to regular tests
@@ -271,9 +276,10 @@ class SwhidHarness:
                             except Exception as e:
                                 logger.error(f"Error running test for {impl.get_info().name}: {e}")
                     
-                    # Compare results (no expected SWHID for discovered tests)
+                    # Compare results (with optional expected v1/v2 for discovered tests)
                     expected_swhid = expected_tags.get(tag)
-                    comparison = self._compare_results(test_name, actual_repo_path, results, expected_swhid=expected_swhid, expected_swhid_sha256=None)
+                    expected_swhid_sha256 = expected_sha256_tags.get(tag)
+                    comparison = self._compare_results(test_name, actual_repo_path, results, expected_swhid=expected_swhid, expected_swhid_sha256=expected_swhid_sha256)
                     all_results.append(comparison)
                     
                     # Log results similar to regular tests
@@ -520,8 +526,15 @@ class SwhidHarness:
                         }
                     else:
                         expected_config_dict = {}
+                    expected_sha256_dict = {}
+                    if payload.expected_sha256:
+                        expected_sha256_dict = {
+                            "branches": payload.expected_sha256.branches,
+                            "tags": payload.expected_sha256.tags
+                        }
                     discovered_tests = self._discover_git_tests(payload_path, payload_name, 
-                                                                 discover_branches, discover_tags, expected_config_dict)
+                                                                 discover_branches, discover_tags, expected_config_dict,
+                                                                 expected_sha256_config=expected_sha256_dict)
                     all_results.extend(discovered_tests)
                     continue
                 
