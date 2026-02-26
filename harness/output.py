@@ -316,8 +316,14 @@ class OutputGenerator:
     
     def _calculate_aggregates(self, test_cases: List[TestCase]) -> Aggregates:
         """Calculate aggregate statistics."""
+        # Include every implementation id that appears in result rows (e.g. rust_v1, rust_v2),
+        # plus loaded impl names so impls with no results still get an entry.
+        impl_ids = set(self.implementations.keys())
+        for tc in test_cases:
+            for r in tc.results:
+                impl_ids.add(r.implementation)
         aggregates_data = {}
-        for impl in self.implementations.keys():
+        for impl in sorted(impl_ids):
             passed = sum(
                 1 for tc in test_cases for r in tc.results 
                 if r.implementation == impl and r.status == "PASS"
