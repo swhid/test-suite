@@ -1065,12 +1065,20 @@ class SwhidHarness:
             
             # Check if there's a disagreement
             # Disagreement exists if:
-            # - Multiple different SWHIDs
+            # - Multiple SWHID groups and at least one group doesn't match expected (v1/v2 both matching = agreement)
             # - Or one SWHID but doesn't match expected (when expected exists for that version)
             # - Or there are failures
             has_disagreement = False
             if len(swhid_groups) > 1:
-                has_disagreement = True
+                # Only disagree when at least one group's SWHID doesn't match expected for its impl(s)
+                for swhid, impls in swhid_groups.items():
+                    for impl_id in impls:
+                        expected_for_impl = expected_by_impl.get(impl_id)
+                        if expected_for_impl and swhid != expected_for_impl:
+                            has_disagreement = True
+                            break
+                    if has_disagreement:
+                        break
             elif len(swhid_groups) == 1:
                 computed_swhid = list(swhid_groups.keys())[0]
                 impls_in_group = swhid_groups[computed_swhid]
