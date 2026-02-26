@@ -144,26 +144,18 @@ def generate_directory_sha256(payload_path: str, config_dir: str) -> Optional[st
     return None
 
 
-def generate_revision_sha256(payload_path: str, config_dir: str, commit: Optional[str] = None) -> Optional[str]:
+def _revision_sha256_from_resolved_repo(resolved_repo_path: str, commit_ref: str) -> Optional[str]:
     """
-    Generate SHA256 SWHID for a revision by converting the repo to Git's
-    SHA256 object format (so commit -> tree -> blob hashes are all SHA256)
-    and then reading the commit hash.
+    Compute SHA256 SWHID for a revision given an already-resolved repo path.
+    Uses a temp copy and fast-export/import so the repo path can be reused.
     """
+    export_ref = "refs/temp/rev-export"
     with tempfile.TemporaryDirectory(prefix="swhid_sha256_") as top:
-        repo_path = _resolve_repo_path(payload_path, config_dir, extract_dir=top)
-        if repo_path is None:
-            return None
-
-        commit_ref = commit if commit else "HEAD"
-        export_ref = "refs/temp/rev-export"
-
         copy_path = os.path.join(top, "source")
         try:
-            shutil.copytree(repo_path, copy_path)
+            shutil.copytree(resolved_repo_path, copy_path)
         except OSError:
             return None
-
         try:
             run_git_command(
                 ["git", "update-ref", export_ref, commit_ref],
@@ -172,16 +164,13 @@ def generate_revision_sha256(payload_path: str, config_dir: str, commit: Optiona
             )
         except subprocess.CalledProcessError:
             return None
-
         sha256_path = os.path.join(top, "sha256")
         os.makedirs(sha256_path, exist_ok=True)
         setup_sha256_repo(sha256_path)
-
         try:
             _run_fast_export_import(copy_path, sha256_path, [export_ref])
         except subprocess.CalledProcessError:
             return None
-
         try:
             rev_sha256 = run_git_command(
                 ["git", "rev-parse", export_ref],
@@ -190,30 +179,22 @@ def generate_revision_sha256(payload_path: str, config_dir: str, commit: Optiona
             )
         except subprocess.CalledProcessError:
             return None
-
         if len(rev_sha256) != 64:
             return None
         return f"swh:2:rev:{rev_sha256}"
 
 
-def generate_release_sha256(payload_path: str, config_dir: str, tag: str) -> Optional[str]:
+def _release_sha256_from_resolved_repo(resolved_repo_path: str, tag: str) -> Optional[str]:
     """
-    Generate SHA256 SWHID for a release by converting the repo to Git's
-    SHA256 object format and then reading the tag object hash.
+    Compute SHA256 SWHID for a release (annotated tag) given an already-resolved repo path.
     """
+    tag_ref = f"refs/tags/{tag}"
     with tempfile.TemporaryDirectory(prefix="swhid_sha256_") as top:
-        repo_path = _resolve_repo_path(payload_path, config_dir, extract_dir=top)
-        if repo_path is None:
-            return None
-
-        tag_ref = f"refs/tags/{tag}"
-
         copy_path = os.path.join(top, "source")
         try:
-            shutil.copytree(repo_path, copy_path)
+            shutil.copytree(resolved_repo_path, copy_path)
         except OSError:
             return None
-
         try:
             obj_type = run_git_command(
                 ["git", "cat-file", "-t", tag],
@@ -224,11 +205,9 @@ def generate_release_sha256(payload_path: str, config_dir: str, tag: str) -> Opt
             return None
         if obj_type != "tag":
             return None
-
         sha256_path = os.path.join(top, "sha256")
         os.makedirs(sha256_path, exist_ok=True)
         setup_sha256_repo(sha256_path)
-
         try:
             _run_fast_export_import(
                 copy_path,
@@ -246,7 +225,6 @@ def generate_release_sha256(payload_path: str, config_dir: str, tag: str) -> Opt
                 )
             except subprocess.CalledProcessError:
                 return None
-
         try:
             tag_sha256 = run_git_command(
                 ["git", "rev-parse", tag_ref],
@@ -255,10 +233,35 @@ def generate_release_sha256(payload_path: str, config_dir: str, tag: str) -> Opt
             )
         except subprocess.CalledProcessError:
             return None
-
         if len(tag_sha256) != 64:
             return None
         return f"swh:2:rel:{tag_sha256}"
+
+
+def generate_revision_sha256(payload_path: str, config_dir: str, commit: Optional[str] = None) -> Optional[str]:
+    """
+    Generate SHA256 SWHID for a revision by converting the repo to Git's
+    SHA256 object format (so commit -> tree -> blob hashes are all SHA256)
+    and then reading the commit hash.
+    """
+    with tempfile.TemporaryDirectory(prefix="swhid_sha256_") as top:
+        repo_path = _resolve_repo_path(payload_path, config_dir, extract_dir=top)
+        if repo_path is None:
+            return None
+        commit_ref = commit if commit else "HEAD"
+        return _revision_sha256_from_resolved_repo(repo_path, commit_ref)
+
+
+def generate_release_sha256(payload_path: str, config_dir: str, tag: str) -> Optional[str]:
+    """
+    Generate SHA256 SWHID for a release by converting the repo to Git's
+    SHA256 object format and then reading the tag object hash.
+    """
+    with tempfile.TemporaryDirectory(prefix="swhid_sha256_") as top:
+        repo_path = _resolve_repo_path(payload_path, config_dir, extract_dir=top)
+        if repo_path is None:
+            return None
+        return _release_sha256_from_resolved_repo(repo_path, tag)
 
 
 def _resolve_repo_path(
@@ -331,6 +334,41 @@ def _run_fast_export_import(
     export_proc.wait(timeout=5)
     if export_proc.returncode != 0:
         raise subprocess.CalledProcessError(export_proc.returncode or 1, export_args)
+
+
+def process_discovery_payload(
+    payload: Dict[str, Any], config_dir: str
+) -> Optional[Dict[str, Dict[str, str]]]:
+    """
+    For payloads with discover_branches/discover_tags and expected.branches/tags,
+    resolve the repo once and compute SHA256 SWHID for each branch (rev) and tag (rel).
+    Returns {"branches": {name: swh:2:rev:...}, "tags": {name: swh:2:rel:...}} or None.
+    """
+    expected = payload.get("expected") or {}
+    branches = expected.get("branches") or {}
+    tags = expected.get("tags") or {}
+    if not branches and not tags:
+        return None
+    payload_path = payload.get("path")
+    if not payload_path:
+        return None
+    with tempfile.TemporaryDirectory(prefix="swhid_sha256_") as top:
+        repo_path = _resolve_repo_path(payload_path, config_dir, extract_dir=top)
+        if repo_path is None:
+            return None
+        result_branches = {}
+        for branch_name in branches:
+            rev = _revision_sha256_from_resolved_repo(repo_path, branch_name)
+            if rev:
+                result_branches[branch_name] = rev
+        result_tags = {}
+        for tag_name in tags:
+            rel = _release_sha256_from_resolved_repo(repo_path, tag_name)
+            if rel:
+                result_tags[tag_name] = rel
+        if not result_branches and not result_tags:
+            return None
+        return {"branches": result_branches, "tags": result_tags}
 
 
 def process_payload(payload: Dict[str, Any], category: str, config_dir: str) -> Optional[str]:
@@ -429,6 +467,19 @@ def main():
                 else:
                     skipped_count += 1
                     print("⊘ skipped (not supported or not found)")
+                # Discovery payloads: fill expected_sha256 for branches/tags from Git
+                if (payload.get("discover_branches") or payload.get("discover_tags")) and payload.get("expected"):
+                    try:
+                        discovery_result = process_discovery_payload(payload, config_dir)
+                        if discovery_result and (discovery_result.get("branches") or discovery_result.get("tags")):
+                            payload["expected_sha256"] = discovery_result
+                            updated_count += 1
+                            n_b = len(discovery_result.get("branches", {}))
+                            n_t = len(discovery_result.get("tags", {}))
+                            print(f"  + expected_sha256: {n_b} branches, {n_t} tags")
+                    except Exception as e:
+                        error_count += 1
+                        print(f"  ✗ discovery error: {e}")
             except Exception as e:
                 error_count += 1
                 print(f"✗ error: {e}")
