@@ -27,7 +27,7 @@ class OutputConfig(BaseModel):
 
 
 class ExpectedRefs(BaseModel):
-    """Expected SWHID references for discovered branches/tags."""
+    """Expected SWHID references for discovered branches/tags (v1)."""
     branches: Dict[str, str] = Field(default_factory=dict)
     tags: Dict[str, str] = Field(default_factory=dict)
     
@@ -38,6 +38,21 @@ class ExpectedRefs(BaseModel):
         for key, swhid in v.items():
             if not swhid.startswith("swh:"):
                 raise ValueError(f"Invalid SWHID format for {info.field_name}[{key}]: {swhid}")
+        return v
+
+
+class ExpectedRefsSha256(BaseModel):
+    """Expected SHA256 SWHID references for discovered branches/tags (v2)."""
+    branches: Dict[str, str] = Field(default_factory=dict)
+    tags: Dict[str, str] = Field(default_factory=dict)
+    
+    @field_validator("branches", "tags")
+    @classmethod
+    def validate_swh2_format(cls, v: Dict[str, str], info) -> Dict[str, str]:
+        """Validate that values are SWHID v2 (swh:2:)."""
+        for key, swhid in v.items():
+            if not swhid.startswith("swh:2:"):
+                raise ValueError(f"Invalid SWHID v2 format for {info.field_name}[{key}]: {swhid}")
         return v
 
 
@@ -59,6 +74,7 @@ class PayloadConfig(BaseModel):
     discover_branches: bool = False
     discover_tags: bool = False
     expected: Optional[ExpectedRefs] = None
+    expected_sha256: Optional[ExpectedRefsSha256] = None
     rust_config: Optional[RustConfig] = None
     expected_error: Optional[str] = None  # For negative tests
     
