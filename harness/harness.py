@@ -141,7 +141,8 @@ class SwhidHarness:
     def _discover_git_tests(self, repo_path: str, base_name: str, 
                             discover_branches: bool, discover_tags: bool,
                             expected_config: Optional[Dict[str, Any]] = None,
-                            expected_sha256_config: Optional[Dict[str, Dict[str, str]]] = None) -> List[ComparisonResult]:
+                            expected_sha256_config: Optional[Dict[str, Dict[str, str]]] = None,
+                            test_both_versions: bool = False) -> List[ComparisonResult]:
         """Discover and test all branches and/or annotated tags in a Git repository."""
         all_results = []
         expected_config = expected_config or {}
@@ -170,24 +171,42 @@ class SwhidHarness:
                     test_name = f"{base_name}_branch_{branch.replace('/', '_')}"
                     logger.info(f"Testing branch '{branch}' as revision: {test_name}")
                     
+                    expected_swhid = expected_branches.get(branch)
+                    expected_swhid_sha256 = expected_sha256_branches.get(branch)
+                    # Run v1 if v1 expected, v2 if v2 expected (so both when both expected)
+                    test_versions = []
+                    if expected_swhid:
+                        test_versions.append(1)
+                    if expected_swhid_sha256:
+                        test_versions.append(2)
+                    if not test_versions:
+                        test_versions = [1]
+                    
                     results = {}
                     with ThreadPoolExecutor(max_workers=self.config.settings.parallel_tests) as executor:
-                        future_to_impl = {
-                            executor.submit(self._run_single_test, impl, actual_repo_path, test_name, 
-                                          category="revision", commit=branch): impl
-                            for impl in self.implementations.values()
-                        }
-                        for future in as_completed(future_to_impl):
-                            impl = future_to_impl[future]
+                        future_to_impl_version = {}
+                        for impl in self.implementations.values():
+                            for test_version in test_versions:
+                                version_hash = "sha256" if test_version == 2 else None
+                                future = executor.submit(
+                                    self._run_single_test, impl, actual_repo_path, test_name,
+                                    category="revision", commit=branch, version=test_version, hash_algo=version_hash
+                                )
+                                future_to_impl_version[future] = (impl, test_version)
+                        for future in as_completed(future_to_impl_version):
+                            impl, test_version = future_to_impl_version[future]
                             try:
                                 result = future.result()
-                                results[impl.get_info().name] = result
+                                impl_name = impl.get_info().name
+                                if len(test_versions) > 1:
+                                    results[f"{impl_name}_v{test_version}"] = result
+                                else:
+                                    results[impl_name] = result
                             except Exception as e:
-                                logger.error(f"Error running test for {impl.get_info().name}: {e}")
+                                logger.error(f"Error running test for {impl.get_info().name} (v{test_version}): {e}")
                     
-                    # When no v2 expected for this branch, emit explicit SKIPPED for v2 so dashboard shows correct skip count
-                    expected_swhid_sha256 = expected_sha256_branches.get(branch)
-                    if expected_swhid_sha256 is None:
+                    # When only v1 was run, emit explicit SKIPPED for v2 so dashboard shows correct skip count
+                    if test_versions == [1]:
                         for impl_name, impl in self.implementations.items():
                             v2_key = f"{impl_name}_v2"
                             if v2_key not in results:
@@ -207,9 +226,29 @@ class SwhidHarness:
                                     ),
                                     version=2
                                 )
+                    # When only v2 was run, emit explicit SKIPPED for v1 so dashboard shows v1 column
+                    elif test_versions == [2]:
+                        for impl_name, impl in self.implementations.items():
+                            v1_key = f"{impl_name}_v1"
+                            if v1_key not in results:
+                                results[v1_key] = SwhidTestResult(
+                                    payload_name=test_name,
+                                    payload_path=actual_repo_path,
+                                    implementation=v1_key,
+                                    success=False,
+                                    swhid=None,
+                                    error="Skipped: only v2 expected for this discovered ref",
+                                    duration=0.0,
+                                    metrics=TestMetrics(
+                                        wall_ms_median=0.0,
+                                        wall_ms_mad=0.0,
+                                        cpu_ms_median=0.0,
+                                        max_rss_kb=0
+                                    ),
+                                    version=1
+                                )
                     
                     # Compare results (with optional expected v1/v2 for discovered tests)
-                    expected_swhid = expected_branches.get(branch)
                     comparison = self._compare_results(test_name, actual_repo_path, results, expected_swhid=expected_swhid, expected_swhid_sha256=expected_swhid_sha256)
                     all_results.append(comparison)
                     
@@ -283,24 +322,42 @@ class SwhidHarness:
                     test_name = f"{base_name}_tag_{tag.replace('/', '_')}"
                     logger.info(f"Testing annotated tag '{tag}' as release: {test_name}")
                     
+                    expected_swhid = expected_tags.get(tag)
+                    expected_swhid_sha256 = expected_sha256_tags.get(tag)
+                    # Run v1 if v1 expected, v2 if v2 expected (so both when both expected)
+                    test_versions = []
+                    if expected_swhid:
+                        test_versions.append(1)
+                    if expected_swhid_sha256:
+                        test_versions.append(2)
+                    if not test_versions:
+                        test_versions = [1]
+                    
                     results = {}
                     with ThreadPoolExecutor(max_workers=self.config.settings.parallel_tests) as executor:
-                        future_to_impl = {
-                            executor.submit(self._run_single_test, impl, actual_repo_path, test_name, 
-                                          category="release", tag=tag): impl
-                            for impl in self.implementations.values()
-                        }
-                        for future in as_completed(future_to_impl):
-                            impl = future_to_impl[future]
+                        future_to_impl_version = {}
+                        for impl in self.implementations.values():
+                            for test_version in test_versions:
+                                version_hash = "sha256" if test_version == 2 else None
+                                future = executor.submit(
+                                    self._run_single_test, impl, actual_repo_path, test_name,
+                                    category="release", tag=tag, version=test_version, hash_algo=version_hash
+                                )
+                                future_to_impl_version[future] = (impl, test_version)
+                        for future in as_completed(future_to_impl_version):
+                            impl, test_version = future_to_impl_version[future]
                             try:
                                 result = future.result()
-                                results[impl.get_info().name] = result
+                                impl_name = impl.get_info().name
+                                if len(test_versions) > 1:
+                                    results[f"{impl_name}_v{test_version}"] = result
+                                else:
+                                    results[impl_name] = result
                             except Exception as e:
-                                logger.error(f"Error running test for {impl.get_info().name}: {e}")
+                                logger.error(f"Error running test for {impl.get_info().name} (v{test_version}): {e}")
                     
-                    # When no v2 expected for this tag, emit explicit SKIPPED for v2 so dashboard shows correct skip count
-                    expected_swhid_sha256 = expected_sha256_tags.get(tag)
-                    if expected_swhid_sha256 is None:
+                    # When only v1 was run, emit explicit SKIPPED for v2 so dashboard shows correct skip count
+                    if test_versions == [1]:
                         for impl_name, impl in self.implementations.items():
                             v2_key = f"{impl_name}_v2"
                             if v2_key not in results:
@@ -320,9 +377,29 @@ class SwhidHarness:
                                     ),
                                     version=2
                                 )
+                    # When only v2 was run, emit explicit SKIPPED for v1 so dashboard shows v1 column
+                    elif test_versions == [2]:
+                        for impl_name, impl in self.implementations.items():
+                            v1_key = f"{impl_name}_v1"
+                            if v1_key not in results:
+                                results[v1_key] = SwhidTestResult(
+                                    payload_name=test_name,
+                                    payload_path=actual_repo_path,
+                                    implementation=v1_key,
+                                    success=False,
+                                    swhid=None,
+                                    error="Skipped: only v2 expected for this discovered ref",
+                                    duration=0.0,
+                                    metrics=TestMetrics(
+                                        wall_ms_median=0.0,
+                                        wall_ms_mad=0.0,
+                                        cpu_ms_median=0.0,
+                                        max_rss_kb=0
+                                    ),
+                                    version=1
+                                )
                     
                     # Compare results (with optional expected v1/v2 for discovered tests)
-                    expected_swhid = expected_tags.get(tag)
                     comparison = self._compare_results(test_name, actual_repo_path, results, expected_swhid=expected_swhid, expected_swhid_sha256=expected_swhid_sha256)
                     all_results.append(comparison)
                     
@@ -474,13 +551,12 @@ class SwhidHarness:
                     test_hash = hash_algo or payload_hash or "sha256"
                 else:
                     # Determine from config/expected values
-                    # Default behavior: test v1 only (backward compatible)
-                    # Only test v2 if explicitly configured or both expected values present
+                    # Run v1 if v1 expected, v2 if v2 expected (run both when both present, like discovery)
                     test_versions = []
                     if expected_swhid:
                         test_versions.append(1)  # Always test v1 if expected_swhid present
-                    if expected_swhid_sha256 and (payload_version == 2 or test_both_versions):
-                        test_versions.append(2)  # Test v2 only if explicitly configured
+                    if expected_swhid_sha256 and (payload_version == 2 or test_both_versions or expected_swhid):
+                        test_versions.append(2)  # Test v2 when v2 expected and (explicit v2 config or flag or v1 also expected)
                     
                     # If no explicit version config and no expected values, default to v1 only
                     if not test_versions:
@@ -540,6 +616,24 @@ class SwhidHarness:
                                 max_rss_kb=0
                             )
                         )
+                        # Also emit v2 slot so dashboard shows SKIPPED instead of N/A
+                        v2_key = f"{impl_name}_v2"
+                        skipped_results[v2_key] = SwhidTestResult(
+                            payload_name=payload_name,
+                            payload_path=payload_path,
+                            implementation=v2_key,
+                            success=False,
+                            swhid=None,
+                            error="Payload file not found",
+                            duration=0.0,
+                            metrics=TestMetrics(
+                                wall_ms_median=0.0,
+                                wall_ms_mad=0.0,
+                                cpu_ms_median=0.0,
+                                max_rss_kb=0
+                            ),
+                            version=2
+                        )
                     # Create comparison result with SKIPPED status
                     expected_error = payload.expected_error
                     expected_swhid_sha256 = payload.expected_swhid_sha256
@@ -578,7 +672,8 @@ class SwhidHarness:
                         }
                     discovered_tests = self._discover_git_tests(payload_path, payload_name, 
                                                                  discover_branches, discover_tags, expected_config_dict,
-                                                                 expected_sha256_config=expected_sha256_dict)
+                                                                 expected_sha256_config=expected_sha256_dict,
+                                                                 test_both_versions=test_both_versions)
                     all_results.extend(discovered_tests)
                     continue
                 

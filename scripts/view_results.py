@@ -307,6 +307,17 @@ def filter_results_by_variant(results_data: Dict, variant_id: str,
     }
 
 
+def _result_for_impl(result_map: Dict[str, Dict], impl: str) -> Optional[Dict]:
+    """Get result for an implementation column. When only v1 ran, harness uses base name (e.g. 'rust'), not 'rust_v1'."""
+    r = result_map.get(impl)
+    if r is not None:
+        return r
+    if impl.endswith('_v1'):
+        base = impl[:-3]  # strip '_v1'
+        return result_map.get(base)
+    return None
+
+
 def determine_cell_status(result: Dict, expected_swhid: Optional[str]) -> Tuple[str, str, Optional[str]]:
     """
     Determine the status, color, and content for a test result cell.
@@ -371,7 +382,19 @@ def create_html_table(results_data: Dict, variant_config: Optional[Dict] = None)
         for t in results_data.get('tests', [])
         for r in t.get('results', [])
     }
-    implementations = sorted(impl_from_meta | impl_from_results)
+    all_impls = sorted(impl_from_meta | impl_from_results)
+    impls_set = set(all_impls)
+    # Show rust_v1 and rust_v2 columns; when only v1 ran, result is under "rust", so we add rust_v1/rust_v2 and look up "rust" for rust_v1
+    display_impls = []
+    for i in all_impls:
+        if i.endswith('_v1') or i.endswith('_v2'):
+            display_impls.append(i)
+        elif i + '_v1' in impls_set or i + '_v2' in impls_set:
+            display_impls.append(i + '_v1')
+            display_impls.append(i + '_v2')
+        else:
+            display_impls.append(i)
+    implementations = sorted(set(display_impls))
     tests = results_data.get('tests', [])
 
     if not implementations or not tests:
@@ -540,7 +563,7 @@ def create_html_table(results_data: Dict, variant_config: Optional[Dict] = None)
 
         # Results per implementation - use impl-specific expected (v1 for rust_v1, v2 for rust_v2)
         for impl in implementations:
-            result = result_map.get(impl)
+            result = _result_for_impl(result_map, impl)
             if not result:
                 html.append('<td style="background-color: #f0f0f0;">N/A</td>')
             else:
@@ -809,8 +832,25 @@ def create_table_rich(results_data: Dict):
     """Create a rich table with color-coded results."""
     console = Console()
     
-    # Get implementations and tests
-    implementations = sorted([impl['id'] for impl in results_data.get('implementations', [])])
+    # Get implementations from metadata and results, drop base when rust_v1/rust_v2 exist
+    impl_from_meta = {impl['id'] for impl in results_data.get('implementations', [])}
+    impl_from_results = {
+        r['implementation']
+        for t in results_data.get('tests', [])
+        for r in t.get('results', [])
+    }
+    all_impls = sorted(impl_from_meta | impl_from_results)
+    impls_set = set(all_impls)
+    display_impls = []
+    for i in all_impls:
+        if i.endswith('_v1') or i.endswith('_v2'):
+            display_impls.append(i)
+        elif i + '_v1' in impls_set or i + '_v2' in impls_set:
+            display_impls.append(i + '_v1')
+            display_impls.append(i + '_v2')
+        else:
+            display_impls.append(i)
+    implementations = sorted(set(display_impls))
     tests = results_data.get('tests', [])
     
     if not implementations:
@@ -835,7 +875,8 @@ def create_table_rich(results_data: Dict):
     for test in tests:
         test_id = test.get('id', 'unknown')
         expected = test.get('expected', {})
-        expected_swhid = expected.get('swhid')
+        expected_v1 = expected.get('swhid')
+        expected_v2 = expected.get('expected_swhid_sha256')
         results = test.get('results', [])
         
         # Create result map by implementation
@@ -844,17 +885,21 @@ def create_table_rich(results_data: Dict):
         # Build row
         row = [test_id]
         
-        # Expected SWHID (shortened)
-        expected_display = expected_swhid[:20] + '...' if expected_swhid and len(expected_swhid) > 20 else (expected_swhid or '')
+        # Expected SWHID (show both v1 and v2 when available)
+        if expected_v1 and expected_v2:
+            expected_display = f"v1: {expected_v1[:15]}... v2: {expected_v2[:15]}..."
+        else:
+            expected_display = (expected_v1 or expected_v2 or '')[:20] + ('...' if (expected_v1 or expected_v2) and len(expected_v1 or expected_v2) > 20 else '')
         row.append(expected_display)
         
-        # Results per implementation
+        # Results per implementation (use v2 expected for _v2 impl, else v1)
         for impl in implementations:
-            result = result_map.get(impl)
+            result = _result_for_impl(result_map, impl)
+            impl_expected = expected_v2 if impl.endswith('_v2') else expected_v1
             if not result:
                 cell_text = Text('N/A', style='dim white')
             else:
-                status_label, color = determine_cell_status(result, expected_swhid)
+                status_label, color = determine_cell_status(result, impl_expected)
                 swhid = result.get('swhid')
                 error = result.get('error')
                 
@@ -881,7 +926,24 @@ def create_table_rich(results_data: Dict):
 
 def create_table_basic(results_data: Dict) -> None:
     """Create a basic text table (fallback when rich is not available)."""
-    implementations = sorted([impl['id'] for impl in results_data.get('implementations', [])])
+    impl_from_meta = {impl['id'] for impl in results_data.get('implementations', [])}
+    impl_from_results = {
+        r['implementation']
+        for t in results_data.get('tests', [])
+        for r in t.get('results', [])
+    }
+    all_impls = sorted(impl_from_meta | impl_from_results)
+    impls_set = set(all_impls)
+    display_impls = []
+    for i in all_impls:
+        if i.endswith('_v1') or i.endswith('_v2'):
+            display_impls.append(i)
+        elif i + '_v1' in impls_set or i + '_v2' in impls_set:
+            display_impls.append(i + '_v1')
+            display_impls.append(i + '_v2')
+        else:
+            display_impls.append(i)
+    implementations = sorted(set(display_impls))
     tests = results_data.get('tests', [])
     
     if not implementations or not tests:
@@ -899,20 +961,22 @@ def create_table_basic(results_data: Dict) -> None:
     for test in tests:
         test_id = test.get('id', 'unknown')
         expected = test.get('expected', {})
-        expected_swhid = expected.get('swhid')
+        expected_v1 = expected.get('swhid')
+        expected_v2 = expected.get('expected_swhid_sha256')
         results = test.get('results', [])
         
         result_map = {r['implementation']: r for r in results}
         
-        expected_display = expected_swhid[:24] if expected_swhid else ''
+        expected_display = (expected_v1 or expected_v2 or '')[:24]
         row = f"{test_id:<40} {expected_display:<25}"
         
         for impl in implementations:
-            result = result_map.get(impl)
+            result = _result_for_impl(result_map, impl)
+            impl_expected = expected_v2 if impl.endswith('_v2') else expected_v1
             if not result:
                 cell = 'N/A'
             else:
-                status_label, _ = determine_cell_status(result, expected_swhid)
+                status_label, _ = determine_cell_status(result, impl_expected)
                 swhid = result.get('swhid', '')
                 error = result.get('error')
                 
