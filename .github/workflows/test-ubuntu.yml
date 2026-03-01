@@ -153,7 +153,8 @@ jobs:
       - name: Run full test suite
         shell: bash
         run: |
-          swhid-harness --log-level debug --output-format canonical --dashboard-output results.json || true
+          # v1 only for test-suite dashboard (https://www.swhid.org/test-suite/) - v2 has separate dashboard
+          swhid-harness --version 1 --log-level debug --output-format canonical --dashboard-output results.json || true
 
       - name: Generate HTML results table
         if: always()
