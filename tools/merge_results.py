@@ -176,6 +176,39 @@ def create_index_data(results_files: List[Dict[str, Any]]) -> Dict[str, Any]:
                 stats["fail_rate"] = 0.0
                 stats["skip_rate"] = 0.0
     
+    # When both X_v1 and X_v2 exist, merge base X into X_v1 and drop X to avoid redundant row
+    bases_to_drop = set()
+    for impl_id in list(impl_platform_matrix.keys()):
+        if impl_id.endswith("_v1"):
+            base = impl_id[:-3]
+            if base + "_v2" in impl_platform_matrix and base in impl_platform_matrix:
+                bases_to_drop.add(base)
+    for base in bases_to_drop:
+        v1_key = base + "_v1"
+        for platform, stats in impl_platform_matrix[base].items():
+            if platform not in impl_platform_matrix[v1_key]:
+                impl_platform_matrix[v1_key][platform] = {
+                    "passed": stats["passed"],
+                    "failed": stats["failed"],
+                    "skipped": stats["skipped"],
+                    "total": stats["total"],
+                    "pass_rate": stats["pass_rate"],
+                    "fail_rate": stats["fail_rate"],
+                    "skip_rate": stats["skip_rate"],
+                }
+            else:
+                v1_stats = impl_platform_matrix[v1_key][platform]
+                v1_stats["passed"] += stats["passed"]
+                v1_stats["failed"] += stats["failed"]
+                v1_stats["skipped"] += stats["skipped"]
+                v1_stats["total"] += stats["total"]
+                if v1_stats["total"] > 0:
+                    v1_stats["pass_rate"] = round(v1_stats["passed"] / v1_stats["total"] * 100, 2)
+                    v1_stats["fail_rate"] = round(v1_stats["failed"] / v1_stats["total"] * 100, 2)
+                    v1_stats["skip_rate"] = round(v1_stats["skipped"] / v1_stats["total"] * 100, 2)
+        impl_platform_matrix.pop(base, None)
+        implementations.discard(base)
+    
     total_results = sum(run["total"] for run in runs)
     overall_fail_rate = round(total_failed / total_results * 100, 2) if total_results > 0 else 0
     overall_skip_rate = round(total_skipped / total_results * 100, 2) if total_results > 0 else 0
