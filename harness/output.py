@@ -325,15 +325,15 @@ class OutputGenerator:
         aggregates_data = {}
         for impl in sorted(impl_ids):
             passed = sum(
-                1 for tc in test_cases for r in tc.results 
+                1 for tc in test_cases for r in tc.results
                 if r.implementation == impl and r.status == "PASS"
             )
             failed = sum(
-                1 for tc in test_cases for r in tc.results 
+                1 for tc in test_cases for r in tc.results
                 if r.implementation == impl and r.status == "FAIL"
             )
             skipped = sum(
-                1 for tc in test_cases for r in tc.results 
+                1 for tc in test_cases for r in tc.results
                 if r.implementation == impl and r.status == "SKIPPED"
             )
             aggregates_data[impl] = {
@@ -341,7 +341,19 @@ class OutputGenerator:
                 "failed": failed,
                 "skipped": skipped
             }
-        
+        # When both X_v1 and X_v2 exist, merge base X into X_v1 and drop X to avoid redundant row
+        bases_to_drop = set()
+        for impl_id in list(aggregates_data.keys()):
+            if impl_id.endswith("_v1"):
+                base = impl_id[:-3]
+                if base + "_v2" in aggregates_data and base in aggregates_data:
+                    bases_to_drop.add(base)
+        for base in bases_to_drop:
+            v1_key = base + "_v1"
+            aggregates_data[v1_key]["passed"] += aggregates_data[base]["passed"]
+            aggregates_data[v1_key]["failed"] += aggregates_data[base]["failed"]
+            aggregates_data[v1_key]["skipped"] += aggregates_data[base]["skipped"]
+            del aggregates_data[base]
         return Aggregates(by_implementation=aggregates_data)
     
     def print_summary(self, canonical_results: HarnessResults) -> None:
