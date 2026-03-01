@@ -142,7 +142,8 @@ class SwhidHarness:
                             discover_branches: bool, discover_tags: bool,
                             expected_config: Optional[Dict[str, Any]] = None,
                             expected_sha256_config: Optional[Dict[str, Dict[str, str]]] = None,
-                            test_both_versions: bool = False) -> List[ComparisonResult]:
+                            test_both_versions: bool = False,
+                            version: Optional[int] = None) -> List[ComparisonResult]:
         """Discover and test all branches and/or annotated tags in a Git repository."""
         all_results = []
         expected_config = expected_config or {}
@@ -173,14 +174,18 @@ class SwhidHarness:
                     
                     expected_swhid = expected_branches.get(branch)
                     expected_swhid_sha256 = expected_sha256_branches.get(branch)
-                    # Run v1 if v1 expected, v2 if v2 expected (so both when both expected)
-                    test_versions = []
-                    if expected_swhid:
-                        test_versions.append(1)
-                    if expected_swhid_sha256:
-                        test_versions.append(2)
-                    if not test_versions:
-                        test_versions = [1]
+                    # CLI version overrides: when version==1, run v1 only
+                    if version is not None:
+                        test_versions = [version]
+                    else:
+                        # Run v1 if v1 expected, v2 if v2 expected (so both when both expected)
+                        test_versions = []
+                        if expected_swhid:
+                            test_versions.append(1)
+                        if expected_swhid_sha256:
+                            test_versions.append(2)
+                        if not test_versions:
+                            test_versions = [1]
                     
                     results = {}
                     with ThreadPoolExecutor(max_workers=self.config.settings.parallel_tests) as executor:
@@ -206,7 +211,8 @@ class SwhidHarness:
                                 logger.error(f"Error running test for {impl.get_info().name} (v{test_version}): {e}")
                     
                     # When only v1 was run, emit explicit SKIPPED for v2 so dashboard shows correct skip count
-                    if test_versions == [1]:
+                    # Skip adding v2 slots when --version 1 (v1-only mode) to avoid false failures
+                    if test_versions == [1] and version != 1:
                         for impl_name, impl in self.implementations.items():
                             v2_key = f"{impl_name}_v2"
                             if v2_key not in results:
@@ -324,14 +330,18 @@ class SwhidHarness:
                     
                     expected_swhid = expected_tags.get(tag)
                     expected_swhid_sha256 = expected_sha256_tags.get(tag)
-                    # Run v1 if v1 expected, v2 if v2 expected (so both when both expected)
-                    test_versions = []
-                    if expected_swhid:
-                        test_versions.append(1)
-                    if expected_swhid_sha256:
-                        test_versions.append(2)
-                    if not test_versions:
-                        test_versions = [1]
+                    # CLI version overrides: when version==1, run v1 only
+                    if version is not None:
+                        test_versions = [version]
+                    else:
+                        # Run v1 if v1 expected, v2 if v2 expected (so both when both expected)
+                        test_versions = []
+                        if expected_swhid:
+                            test_versions.append(1)
+                        if expected_swhid_sha256:
+                            test_versions.append(2)
+                        if not test_versions:
+                            test_versions = [1]
                     
                     results = {}
                     with ThreadPoolExecutor(max_workers=self.config.settings.parallel_tests) as executor:
@@ -357,7 +367,8 @@ class SwhidHarness:
                                 logger.error(f"Error running test for {impl.get_info().name} (v{test_version}): {e}")
                     
                     # When only v1 was run, emit explicit SKIPPED for v2 so dashboard shows correct skip count
-                    if test_versions == [1]:
+                    # Skip adding v2 slots when --version 1 (v1-only mode) to avoid false failures
+                    if test_versions == [1] and version != 1:
                         for impl_name, impl in self.implementations.items():
                             v2_key = f"{impl_name}_v2"
                             if v2_key not in results:
@@ -616,24 +627,25 @@ class SwhidHarness:
                                 max_rss_kb=0
                             )
                         )
-                        # Also emit v2 slot so dashboard shows SKIPPED instead of N/A
-                        v2_key = f"{impl_name}_v2"
-                        skipped_results[v2_key] = SwhidTestResult(
-                            payload_name=payload_name,
-                            payload_path=payload_path,
-                            implementation=v2_key,
-                            success=False,
-                            swhid=None,
-                            error="Payload file not found",
-                            duration=0.0,
-                            metrics=TestMetrics(
-                                wall_ms_median=0.0,
-                                wall_ms_mad=0.0,
-                                cpu_ms_median=0.0,
-                                max_rss_kb=0
-                            ),
-                            version=2
-                        )
+                        # Also emit v2 slot so dashboard shows SKIPPED instead of N/A (skip when --version 1)
+                        if version != 1:
+                            v2_key = f"{impl_name}_v2"
+                            skipped_results[v2_key] = SwhidTestResult(
+                                payload_name=payload_name,
+                                payload_path=payload_path,
+                                implementation=v2_key,
+                                success=False,
+                                swhid=None,
+                                error="Payload file not found",
+                                duration=0.0,
+                                metrics=TestMetrics(
+                                    wall_ms_median=0.0,
+                                    wall_ms_mad=0.0,
+                                    cpu_ms_median=0.0,
+                                    max_rss_kb=0
+                                ),
+                                version=2
+                            )
                     # Create comparison result with SKIPPED status
                     expected_error = payload.expected_error
                     expected_swhid_sha256 = payload.expected_swhid_sha256
@@ -673,7 +685,8 @@ class SwhidHarness:
                     discovered_tests = self._discover_git_tests(payload_path, payload_name, 
                                                                  discover_branches, discover_tags, expected_config_dict,
                                                                  expected_sha256_config=expected_sha256_dict,
-                                                                 test_both_versions=test_both_versions)
+                                                                 test_both_versions=test_both_versions,
+                                                                 version=version)
                     all_results.extend(discovered_tests)
                     continue
                 
@@ -717,7 +730,8 @@ class SwhidHarness:
                             logger.error(f"Error running test for {impl.get_info().name} (v{test_version}): {e}")
                 
                 # When only v1 was run, emit explicit SKIPPED for v2 so dashboard shows correct skip count
-                if test_versions == [1]:
+                # Skip adding v2 slots when --version 1 (v1-only mode) to avoid false failures
+                if test_versions == [1] and version != 1:
                     for impl_name, impl in self.implementations.items():
                         v2_key = f"{impl_name}_v2"
                         if v2_key not in results:
