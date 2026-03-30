@@ -876,7 +876,7 @@ jobs:
       
       - name: Configure Pages
         if: steps.pages-check.outputs.enabled == 'true'
-        uses: actions/configure-pages@v5
+        uses: actions/configure-pages@v6
         continue-on-error: true
       
       - name: Verify site structure
