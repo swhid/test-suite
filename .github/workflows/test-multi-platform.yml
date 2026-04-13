@@ -47,7 +47,7 @@ jobs:
       
       - name: Find previous workflow run
         id: find-previous-run
-        uses: actions/github-script@v8
+        uses: actions/github-script@v9
         continue-on-error: true
         with:
           script: |
@@ -822,7 +822,7 @@ jobs:
       
       - name: Check if Pages is enabled
         id: pages-check
-        uses: actions/github-script@v8
+        uses: actions/github-script@v9
         continue-on-error: true
         with:
           script: |
